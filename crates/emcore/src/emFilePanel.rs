@@ -142,6 +142,15 @@ impl emFilePanel {
     ///
     /// Called at the start of every Cycle that may consume or fire the signal.
     /// Deferred allocation matches B-015 Option B: no EngineCtx at construction.
+    ///
+    /// **Subclass implementation detail.** `pub` (not `pub(crate)`) is required
+    /// for cross-crate access from emfileman-derived panels (`emDirPanel`,
+    /// `emDirStatPanel`, `emFileLinkPanel`). It MUST be called as the
+    /// documented `Cycle` quartet:
+    /// `ensure_vir_file_state_signal` → `fire_pending_vir_state` →
+    /// `cycle_inner` → conditional `ectx.fire(GetVirFileStateSignal())`.
+    /// See `emImageFileImageFilePanel::Cycle` for the canonical shape.
+    #[doc(hidden)]
     pub fn ensure_vir_file_state_signal(&mut self, cc: &mut impl ConstructCtx) -> SignalId {
         if self.vir_file_state_signal.is_null() {
             self.vir_file_state_signal = cc.create_signal();
@@ -151,6 +160,11 @@ impl emFilePanel {
 
     /// Fire the `VirFileStateSignal` for pending out-of-Cycle mutations and
     /// reset the flag. No-op if the signal has not been allocated yet.
+    ///
+    /// **Subclass implementation detail.** `pub` is required for cross-crate
+    /// derived-panel `Cycle` implementations; see
+    /// `ensure_vir_file_state_signal` doc for the mandatory call quartet.
+    #[doc(hidden)]
     pub fn fire_pending_vir_state(&mut self, ctx: &mut impl SignalCtx) {
         if self.pending_vir_state_fire && !self.vir_file_state_signal.is_null() {
             ctx.fire(self.vir_file_state_signal);
@@ -203,7 +217,21 @@ impl emFilePanel {
     }
 
     /// Inner cycle logic. Returns true if VirtualFileState changed.
-    /// Port of C++ emFilePanel::Cycle.
+    ///
+    /// DIVERGED: (language-forced) Rust splits C++ `emFilePanel::Cycle` into a
+    /// state-advance helper (`cycle_inner`, `&mut self`, no `EngineCtx`) plus
+    /// the public `Cycle` (which threads `ectx` and adds the prefix/suffix)
+    /// because the composition-not-inheritance shape forces the split: derived
+    /// panels embed `emFilePanel` as a field rather than inheriting, so they
+    /// cannot call a parent `Cycle(ectx)` from inside their own
+    /// `Cycle(ectx, _ctx)` without re-borrowing the field. The two-piece API
+    /// (allocate + drain pending fire on entry, advance state, fire on exit)
+    /// preserves the C++ observable contract.
+    ///
+    /// **Subclass implementation detail.** `pub` is required for cross-crate
+    /// derived-panel `Cycle` implementations; see
+    /// `ensure_vir_file_state_signal` doc for the mandatory call quartet.
+    #[doc(hidden)]
     pub fn cycle_inner(&mut self) -> bool {
         let new_state = self.compute_vir_file_state();
         if new_state != self.last_vir_file_state {

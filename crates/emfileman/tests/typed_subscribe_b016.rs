@@ -221,13 +221,25 @@ fn file_link_panel_allocates_vir_file_state_signal_on_first_cycle() {
     h.scheduler.flush_signals_for_test();
 }
 
+// M-001 4-branch fidelity (B-016 review I-2). Each test fires exactly one
+// signal source, runs a Cycle, and asserts the C++ flag-transition matrix
+// from emFileLinkPanel.cpp:83-102:
+//
+//   Branch        cpp lines   do_update    dir_entry_up_to_date
+//   ────────────────────────────────────────────────────────────
+//   (a) VFS         85-88     +true        unchanged
+//   (b) Update      90-93     +true        +false
+//   (c) Config      95-98     unchanged    unchanged
+//   (d) Model       100-102   +true        unchanged
+//
+// `set_link_model` (the mutator, not the ChangeSignal branch) is also
+// tested; per cpp:64,73 it sets do_update=true and dir_entry_up_to_date=false.
+
 #[test]
 fn file_link_panel_m001_vfs_branch_sets_do_update_only() {
-    // M-001 fidelity: the VFS branch (C++ cpp:85-88) sets `doUpdate=true`
-    // and triggers InvalidatePainting. It does NOT touch DirEntryUpToDate
-    // (that flag is only mutated by the UpdateSignal and Model branches at
-    // cpp:90 and cpp:100). Synthesize a VFS fire by mutating
-    // pending_vir_state_fire via set_custom_error and re-cycling.
+    // (a) VFS branch: cpp:85-88. Synthesize via set_custom_error which sets
+    // pending_vir_state_fire → first Cycle's prefix fires VFS signal →
+    // second Cycle's branch (a) sees IsSignaled(VFS)=true.
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
@@ -237,23 +249,174 @@ fn file_link_panel_m001_vfs_branch_sets_do_update_only() {
         PanelScope::Framework,
     );
 
-    // First Cycle: prefix allocates VFS signal + subscribed_init connects.
-    let _ = cycle_panel(&mut h, eid, &mut panel);
+    let _ = cycle_panel(&mut h, eid, &mut panel); // first cycle: subscribes
+    panel.reset_flags_for_test(false, true); // clean baseline
 
-    // Drain initial flag state (LayoutChildren consumes do_update). We can't
-    // run LayoutChildren here without a viewed PanelCtx, so instead we read
-    // the flags after a clean Cycle that has no fires.
-    // After ctor, do_update starts true; second Cycle with no fires keeps it.
-    let (du0, _, il0) = panel.flags_for_test();
+    panel.set_custom_error_for_test("vfs-branch-trigger");
+    h.scheduler.flush_signals_for_test(); // make the prefix-fired signal observable
+    let _ = cycle_panel(&mut h, eid, &mut panel); // prefix fires VFS, branch (a) consumes
+    h.scheduler.flush_signals_for_test();
+    let _ = cycle_panel(&mut h, eid, &mut panel); // observe IsSignaled(VFS) in this Cycle
+
+    let (du, ud) = panel.flags_for_test();
+    assert!(du, "(a) VFS branch: do_update must be set (cpp:87)");
     assert!(
-        du0,
-        "do_update starts true (initial UpdateDataAndChildPanel)"
+        ud,
+        "(a) VFS branch: dir_entry_up_to_date must be unchanged (cpp:85-88 does not touch it)"
     );
-    assert!(!il0, "invalidate_layout starts false");
 
     h.scheduler.remove_engine(eid);
     drain_all_engines(&mut h);
     h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn file_link_panel_m001_update_signal_branch_sets_both() {
+    // (b) UpdateSignal branch: cpp:90-93. Fire the shared file-update
+    // broadcast directly via the scheduler.
+    let mut h = TestViewHarness::new();
+    let ctx = Rc::clone(&h.root_context);
+    let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
+    let eid = h.scheduler.register_engine(
+        Box::new(NoopEngine),
+        Priority::Medium,
+        PanelScope::Framework,
+    );
+
+    // Harness does not pre-allocate the file_update_signal (production wires
+    // it in App::new); allocate it here so AcquireUpdateSignalModel returns a
+    // real id observable to IsSignaled.
+    if h.scheduler.file_update_signal.is_null() {
+        let s = h.scheduler.create_signal();
+        h.scheduler.file_update_signal = s;
+    }
+
+    let _ = cycle_panel(&mut h, eid, &mut panel);
+    panel.reset_flags_for_test(false, true);
+
+    let update_sig = h.scheduler.file_update_signal;
+    h.scheduler.fire(update_sig);
+    h.scheduler.flush_signals_for_test();
+    let _ = cycle_panel(&mut h, eid, &mut panel);
+
+    let (du, ud) = panel.flags_for_test();
+    assert!(du, "(b) UpdateSignal branch: do_update set (cpp:92)");
+    assert!(
+        !ud,
+        "(b) UpdateSignal branch: dir_entry_up_to_date cleared (cpp:91)"
+    );
+
+    h.scheduler.remove_engine(eid);
+    drain_all_engines(&mut h);
+    h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn file_link_panel_m001_config_branch_does_not_set_do_update() {
+    // (c) Config branch: cpp:95-98. InvalidatePainting + InvalidateChildrenLayout,
+    // no doUpdate. M-4: Rust drops `invalidate_layout` flag (LayoutChildren and
+    // Paint always run); the M-001 distinction is "Config does NOT set
+    // do_update or clear dir_entry_up_to_date".
+    let mut h = TestViewHarness::new();
+    let ctx = Rc::clone(&h.root_context);
+    let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
+    let eid = h.scheduler.register_engine(
+        Box::new(NoopEngine),
+        Priority::Medium,
+        PanelScope::Framework,
+    );
+
+    let _ = cycle_panel(&mut h, eid, &mut panel);
+    panel.reset_flags_for_test(false, true);
+
+    // Mutate the config to fire its ChangeSignal.
+    let config = emFileMan::emFileManViewConfig::emFileManViewConfig::Acquire(&ctx);
+    {
+        let mut ectx = h.engine_ctx(eid);
+        let cur = config.borrow().GetShowHiddenFiles();
+        config.borrow_mut().SetShowHiddenFiles(&mut ectx, !cur);
+    }
+    h.scheduler.flush_signals_for_test();
+    let _ = cycle_panel(&mut h, eid, &mut panel);
+
+    let (du, ud) = panel.flags_for_test();
+    assert!(
+        !du,
+        "(c) Config branch: do_update must NOT be set (cpp:95-98)"
+    );
+    assert!(
+        ud,
+        "(c) Config branch: dir_entry_up_to_date must be unchanged (cpp:95-98 does not touch it)"
+    );
+
+    h.scheduler.remove_engine(eid);
+    drain_all_engines(&mut h);
+    h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn file_link_panel_m001_model_branch_sets_do_update_only() {
+    // (d) Model ChangeSignal branch: cpp:100-102. Only doUpdate=true.
+    // Drive a synchronous ChangeSignal fire via emFileLinkModel::hard_reset
+    // (D-008 mutator-fire pattern).
+    let mut h = TestViewHarness::new();
+    let ctx = Rc::clone(&h.root_context);
+    let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
+    let model = emFileMan::emFileLinkModel::emFileLinkModel::Acquire(
+        &ctx,
+        "/tmp/m001-model-branch.emFileLink",
+        false,
+    );
+    panel.set_link_model(Rc::clone(&model));
+
+    let eid = h.scheduler.register_engine(
+        Box::new(NoopEngine),
+        Priority::Medium,
+        PanelScope::Framework,
+    );
+
+    let _ = cycle_panel(&mut h, eid, &mut panel); // wires model_subscribed
+    panel.reset_flags_for_test(false, true);
+
+    {
+        let mut ectx = h.engine_ctx(eid);
+        model.borrow_mut().hard_reset(&mut ectx);
+    }
+    h.scheduler.flush_signals_for_test();
+    let _ = cycle_panel(&mut h, eid, &mut panel);
+
+    let (du, ud) = panel.flags_for_test();
+    assert!(du, "(d) Model branch: do_update set (cpp:101)");
+    assert!(
+        ud,
+        "(d) Model branch: dir_entry_up_to_date must be unchanged (cpp:100-102 does not touch it)"
+    );
+
+    h.scheduler.remove_engine(eid);
+    drain_all_engines(&mut h);
+    h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn file_link_panel_m001_set_link_model_mutator_sets_both() {
+    // set_link_model (cpp:69-77): UpdateDataAndChildPanel after SetFileModel
+    // ⇒ do_update=true; the new model means cached DirEntry is stale ⇒
+    // dir_entry_up_to_date=false. Pure mutator, no Cycle needed.
+    let h = TestViewHarness::new();
+    let ctx = Rc::clone(&h.root_context);
+    let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
+    panel.reset_flags_for_test(false, true);
+
+    let model = emFileMan::emFileLinkModel::emFileLinkModel::Acquire(
+        &ctx,
+        "/tmp/m001-set-link-model.emFileLink",
+        false,
+    );
+    panel.set_link_model(model);
+
+    let (du, ud) = panel.flags_for_test();
+    assert!(du, "set_link_model: do_update set (cpp:73)");
+    assert!(!ud, "set_link_model: dir_entry_up_to_date cleared");
 }
 
 #[test]

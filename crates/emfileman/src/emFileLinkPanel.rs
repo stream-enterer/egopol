@@ -66,6 +66,10 @@ pub struct emFileLinkPanel {
     pub(crate) have_border: bool,
     have_dir_entry_panel: bool,
     full_path: String,
+    /// Cached `emDirEntry` for the resolved link target. Mirrors C++
+    /// `emFileLinkPanel::DirEntry` member (cpp:236-296). Re-built only when
+    /// `dir_entry_up_to_date` is false — the I-1 gate (cpp:277, cpp:299).
+    dir_entry: emDirEntry,
     child_panel: Option<PanelId>,
     /// B-016 / M-001: per-branch flag fidelity to C++ emFileLinkPanel.cpp:84-101.
     /// `do_update` is set by VFS / UpdateSignal / Model branches → triggers
@@ -77,10 +81,6 @@ pub struct emFileLinkPanel {
     /// the file-update broadcast / model state. The Rust `update_data_and_child_panel`
     /// re-resolves the link target whenever this is false.
     dir_entry_up_to_date: bool,
-    /// B-016 / M-001: set true by Config branch (cpp:97). Distinct from
-    /// `do_update` because Config-change does not require re-resolving the
-    /// link target — only re-laying out the child panel.
-    invalidate_layout: bool,
     last_viewed: bool,
     /// First-Cycle init guard for D-006 subscribe shape.
     subscribed_init: bool,
@@ -102,13 +102,13 @@ impl emFileLinkPanel {
             have_border,
             have_dir_entry_panel: false,
             full_path: String::new(),
+            dir_entry: emDirEntry::default(),
             child_panel: None,
             // M-001 fidelity: initial state — we want the first viewed
             // LayoutChildren to populate the child panel, mirroring C++
             // ctor's `UpdateDataAndChildPanel()` call (cpp:64).
             do_update: true,
             dir_entry_up_to_date: false,
-            invalidate_layout: false,
             last_viewed: false,
             subscribed_init: false,
             model_subscribed: false,
@@ -134,13 +134,22 @@ impl emFileLinkPanel {
         // C++ `RemoveWakeUpSignal(old)` + `AddWakeUpSignal(new)` semantics.
         self.model_subscribed = false;
         // C++ cpp:73: `UpdateDataAndChildPanel()` after SetFileModel — drive
-        // a re-resolve of the new link target.
+        // a re-resolve of the new link target. The path/have-dir-entry change
+        // detected inside `update_data_and_child_panel` clears
+        // `dir_entry_up_to_date` (cpp:252) so the I-1 gate forces a fresh
+        // `emDirEntry(FullPath)` build before the new child is created.
         self.do_update = true;
         self.dir_entry_up_to_date = false;
     }
 
     fn update_data_and_child_panel(&mut self, ctx: &mut PanelCtx, viewed: bool) {
+        // Port of C++ emFileLinkPanel::UpdateDataAndChildPanel
+        // (emFileLinkPanel.cpp:234-305). The I-1 gate on `dir_entry_up_to_date`
+        // mirrors cpp:277 (re-resolve when child exists & flag stale) and
+        // cpp:299 (re-resolve before creating a new child if stale).
+
         if !viewed {
+            // cpp:240-243: viewConditionGood=false → DeleteChildPanel().
             if let Some(child) = self.child_panel.take() {
                 ctx.delete_child(child);
             }
@@ -156,19 +165,60 @@ impl emFileLinkPanel {
         let new_have_dir_entry = model.GetHaveDirEntry();
         drop(model);
 
+        // cpp:248-254: path or have-dir-entry changed → DeleteChildPanel +
+        // DirEntryUpToDate=false.
         if new_full_path != self.full_path || new_have_dir_entry != self.have_dir_entry_panel {
-            // Path or type changed — recreate child
             if let Some(child) = self.child_panel.take() {
                 ctx.delete_child(child);
             }
             self.full_path = new_full_path;
             self.have_dir_entry_panel = new_have_dir_entry;
+            self.dir_entry_up_to_date = false;
         }
 
+        // cpp:277-296: I-1 gate. Re-resolve the cached DirEntry only when an
+        // existing child needs refreshing. If the new entry differs:
+        //   * have_dir_entry_panel: forward to the dependent's UpdateDirEntry.
+        //   * else: delete child only when path/errno/file-type changed
+        //     (cpp:289-291) — pure stat-content changes leave the plugin panel
+        //     in place.
+        if self.child_panel.is_some() && !self.dir_entry_up_to_date {
+            let old_dir_entry = self.dir_entry.clone();
+            self.dir_entry = emDirEntry::from_path(&self.full_path);
+            self.dir_entry_up_to_date = true;
+            if self.dir_entry != old_dir_entry {
+                if self.have_dir_entry_panel {
+                    if let Some(child) = self.child_panel {
+                        let new_entry = self.dir_entry.clone();
+                        ctx.tree
+                            .with_behavior_as::<emDirEntryPanel, _>(child, |dep| {
+                                dep.UpdateDirEntry(new_entry);
+                            });
+                    }
+                } else {
+                    let path_changed = self.dir_entry.GetPath() != old_dir_entry.GetPath();
+                    let errno_changed =
+                        self.dir_entry.GetStatErrNo() != old_dir_entry.GetStatErrNo();
+                    let mode_changed = (self.dir_entry.GetStat().st_mode & libc::S_IFMT)
+                        != (old_dir_entry.GetStat().st_mode & libc::S_IFMT);
+                    if path_changed || errno_changed || mode_changed {
+                        if let Some(child) = self.child_panel.take() {
+                            ctx.delete_child(child);
+                        }
+                    }
+                }
+            }
+        }
+
+        // cpp:298-304: create child if absent. Re-build DirEntry first if
+        // still stale — the I-1 gate's second site.
         if self.child_panel.is_none() && !self.full_path.is_empty() {
+            if !self.dir_entry_up_to_date {
+                self.dir_entry = emDirEntry::from_path(&self.full_path);
+                self.dir_entry_up_to_date = true;
+            }
             if self.have_dir_entry_panel {
-                let entry = emDirEntry::from_path(&self.full_path);
-                let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), entry);
+                let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), self.dir_entry.clone());
                 let child_id = ctx.create_child_with("", Box::new(panel));
                 self.child_panel = Some(child_id);
             } else {
@@ -201,14 +251,27 @@ impl emFileLinkPanel {
         self.file_panel.set_custom_error(msg);
     }
 
-    /// B-016 / M-001 test accessor: per-branch flag inspection.
+    /// B-016 / M-001 test mutator: clear `do_update` and `dir_entry_up_to_date`
+    /// to a known baseline so subsequent Cycle-branch firings can be observed
+    /// in isolation. Production code drains `do_update` through `LayoutChildren`,
+    /// which requires `viewed=true` plumbing the M-001 branch tests don't have.
     #[doc(hidden)]
-    pub fn flags_for_test(&self) -> (bool, bool, bool) {
-        (
-            self.do_update,
-            self.dir_entry_up_to_date,
-            self.invalidate_layout,
-        )
+    pub fn reset_flags_for_test(&mut self, do_update: bool, dir_entry_up_to_date: bool) {
+        self.do_update = do_update;
+        self.dir_entry_up_to_date = dir_entry_up_to_date;
+    }
+
+    /// B-016 / M-001 test accessor: per-branch flag inspection.
+    /// Returns `(do_update, dir_entry_up_to_date)`. The C++ Config-branch
+    /// effects (`InvalidatePainting`/`InvalidateChildrenLayout`, cpp:96-97)
+    /// have no Rust analogue flag — `LayoutChildren` runs every layout pass
+    /// and `Paint` runs every paint pass, so the M-4 review of B-016
+    /// concluded the previous `invalidate_layout` field was a write-only no-op
+    /// and removed it. The Config branch is still tested by asserting
+    /// `do_update` is *not* set (distinguishing it from VFS/UpdateSignal/Model).
+    #[doc(hidden)]
+    pub fn flags_for_test(&self) -> (bool, bool) {
+        (self.do_update, self.dir_entry_up_to_date)
     }
 
     fn layout_child_panel(&self, ctx: &mut PanelCtx, panel_height: f64) {
@@ -293,14 +356,16 @@ impl PanelBehavior for emFileLinkPanel {
             }
         }
 
-        // B-016 / M-001: per-branch fidelity to C++ emFileLinkPanel.cpp:84-101.
+        // B-016 / M-001: per-branch fidelity to C++ emFileLinkPanel.cpp:83-102.
         // 4 distinct IsSignaled branches with 3 distinct flag mutations:
-        //   (a) VFS:           InvalidatePainting + doUpdate=true
-        //   (b) UpdateSignal:  DirEntryUpToDate=false + doUpdate=true
-        //   (c) Config:        InvalidatePainting + InvalidateChildrenLayout (no doUpdate)
-        //   (d) Model:         doUpdate=true
-        // The previously-collapsed `needs_update` flag was an M-001 violation
-        // (no forced category applied); restored here.
+        //   (a) VFS:           InvalidatePainting + doUpdate=true (cpp:85-88)
+        //   (b) UpdateSignal:  DirEntryUpToDate=false + doUpdate=true (cpp:90-93)
+        //   (c) Config:        InvalidatePainting + InvalidateChildrenLayout
+        //                      (cpp:95-98) — no doUpdate, no Rust flag (M-4:
+        //                      Rust LayoutChildren/Paint run unconditionally,
+        //                      so the C++ invalidations are implicit).
+        //   (d) Model:         doUpdate=true (cpp:100-102) — does NOT touch
+        //                      DirEntryUpToDate.
 
         // (a) C++ cpp:85-88: VirFileStateSignal branch.
         if ectx.IsSignaled(self.file_panel.GetVirFileStateSignal()) {
@@ -314,19 +379,19 @@ impl PanelBehavior for emFileLinkPanel {
             self.do_update = true;
         }
 
-        // (c) C++ cpp:95-98: Config->GetChangeSignal branch — invalidates
-        // layout but does NOT set doUpdate. Re-call combined-form accessor
+        // (c) C++ cpp:95-98: Config->GetChangeSignal branch — InvalidatePainting
+        // + InvalidateChildrenLayout, no doUpdate. Both effects are implicit
+        // in Rust (LayoutChildren and Paint always run). The branch is still
+        // checked so `IsSignaled` consumes the latched bit and per-branch
+        // fidelity tests can observe entry. Re-call combined-form accessor
         // (B-014 precedent): idempotent.
         let chg_sig = self.config.borrow().GetChangeSignal(ectx);
-        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
-            self.invalidate_layout = true;
-        }
+        let _config_signaled = !chg_sig.is_null() && ectx.IsSignaled(chg_sig);
 
-        // (d) C++ cpp:100-103: Model->GetChangeSignal branch.
+        // (d) C++ cpp:100-102: Model->GetChangeSignal branch — only doUpdate.
         if let Some(ref model_rc) = self.model {
             let chg = model_rc.borrow().GetChangeSignal(ectx);
             if !chg.is_null() && ectx.IsSignaled(chg) {
-                self.dir_entry_up_to_date = false;
                 self.do_update = true;
             }
         }
@@ -481,19 +546,12 @@ impl PanelBehavior for emFileLinkPanel {
     /// panels. The timing difference is at most one frame. This matches the
     /// established pattern in emDirEntryPanel.
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
-        // M-001: per-branch flag consumption.
+        // M-001: per-branch consumption. `update_data_and_child_panel` now
+        // owns the `dir_entry_up_to_date` gate (I-1) and clears the flag
+        // inline when it re-resolves.
         if self.do_update {
             self.update_data_and_child_panel(ctx, self.last_viewed);
             self.do_update = false;
-            // After a successful re-resolve, dir-entry view is current again.
-            self.dir_entry_up_to_date = true;
-        }
-        // The Config branch sets invalidate_layout without do_update — the
-        // child panel itself is unchanged but its layout may have shifted
-        // (e.g., border padding). Re-laying out via layout_child_panel below
-        // covers this; we just clear the flag.
-        if self.invalidate_layout {
-            self.invalidate_layout = false;
         }
         let rect = ctx.layout_rect();
         self.layout_child_panel(ctx, rect.h);
