@@ -12,6 +12,7 @@ use emcore::emScalarField::emScalarField;
 use emcore::emTextField::emTextField;
 
 use crate::emStocksConfig::{emStocksConfig, ChartPeriod, Sorting};
+use crate::emStocksFileModel::emStocksFileModel;
 use crate::emStocksListBox::emStocksListBox;
 use crate::emStocksRec::{emStocksRec, Interest, PaymentPriceToString, StockRec};
 
@@ -466,16 +467,41 @@ pub(crate) fn ValidateDate(input: &str) -> String {
 /// `None` when shrunk (C++ NULL pointers), `Some` when expanded.
 pub struct emStocksControlPanel {
     pub(crate) look: Rc<emLook>,
+    /// C++ `emStocksFileModel & FileModel;` member reference
+    /// (emStocksControlPanel.h:33). (a)-justified `Rc<RefCell<>>`: shared
+    /// across `emStocksFilePanel::Cycle` (owner) and `emStocksControlPanel::Cycle`
+    /// (consumer); both must read/mutate the same model.
+    pub(crate) file_model: Rc<RefCell<emStocksFileModel>>,
+    /// C++ `emStocksConfig & Config;` member reference. (a)-justified
+    /// per Task A.1 / Phase 3 — co-borrowed with FilePanel.
+    pub(crate) config: Rc<RefCell<emStocksConfig>>,
+    /// C++ `emStocksListBox & ListBox;` member reference. (a)-justified —
+    /// FilePanel wraps the ListBox in `Rc<RefCell<>>` (Task A.1) so the
+    /// ControlPanel can hold a clone of the same handle.
+    pub(crate) list_box: Rc<RefCell<emStocksListBox>>,
     pub(crate) update_controls_needed: bool,
     pub(crate) widgets: Option<ControlWidgets>,
+    /// D-006 first-Cycle init flag; mirrors the B-001 ListBox pattern at
+    /// emStocksListBox.rs (Phase 4.5 precedent). Phase B will populate the
+    /// gated body with the 37 deferred subscribes from the B-001 design doc.
+    pub(crate) subscribed_init: bool,
 }
 
 impl emStocksControlPanel {
-    pub fn new(look: Rc<emLook>) -> Self {
+    pub fn new(
+        look: Rc<emLook>,
+        file_model: Rc<RefCell<emStocksFileModel>>,
+        config: Rc<RefCell<emStocksConfig>>,
+        list_box: Rc<RefCell<emStocksListBox>>,
+    ) -> Self {
         Self {
             look,
+            file_model,
+            config,
+            list_box,
             update_controls_needed: true,
             widgets: None,
+            subscribed_init: false,
         }
     }
 
@@ -718,9 +744,47 @@ impl emStocksControlPanel {
     }
 }
 
-impl Default for emStocksControlPanel {
-    fn default() -> Self {
-        Self::new(emLook::new())
+// ─── PanelBehavior ───────────────────────────────────────────────────────────
+
+/// Port of C++ `emStocksControlPanel::Cycle` (emStocksControlPanel.cpp:88-...).
+///
+/// Phase A: structural scaffold only. The first-Cycle-init slot exists for
+/// Phase B to populate with the 37 deferred D-006 row subscribes. Until then
+/// the body is a no-op latch that only flips `subscribed_init`.
+impl emcore::emPanel::PanelBehavior for emStocksControlPanel {
+    fn Cycle(
+        &mut self,
+        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        _pctx: &mut emcore::emEngineCtx::PanelCtx,
+    ) -> bool {
+        if !self.subscribed_init {
+            // D-006 first-Cycle-init slot. Phase B will populate this with the
+            // 37 deferred row subscribes per the B-001 design doc per-panel
+            // table. Reading the member-ref fields keeps them live until that
+            // wiring lands; once Phase B uses them in earnest, drop these
+            // touches.
+            let _ = &self.file_model;
+            let _ = &self.config;
+            let _ = &self.list_box;
+            self.subscribed_init = true;
+        }
+        false
+    }
+}
+
+#[cfg(test)]
+impl emStocksControlPanel {
+    /// Test-only fixture. The production constructor requires a parent-supplied
+    /// `Rc<RefCell<>>` for FileModel/Config/ListBox; tests fabricate dummies.
+    pub(crate) fn for_test() -> Self {
+        Self::new(
+            emLook::new(),
+            Rc::new(RefCell::new(emStocksFileModel::new(
+                std::path::PathBuf::from("/tmp/control_panel_test.emStocks"),
+            ))),
+            Rc::new(RefCell::new(emStocksConfig::default())),
+            Rc::new(RefCell::new(emStocksListBox::new())),
+        )
     }
 }
 
@@ -761,7 +825,70 @@ mod tests {
     use crate::emStocksRec::StockRec;
 
     fn make_panel() -> emStocksControlPanel {
-        emStocksControlPanel::new(emLook::new())
+        emStocksControlPanel::for_test()
+    }
+
+    /// B-001-followup A.3 — first-Cycle latch flips `subscribed_init`.
+    /// Phase B will replace the no-op gated body with the 37 deferred D-006
+    /// row subscribes; this test pins the latch contract until then.
+    #[test]
+    fn control_panel_first_cycle_flips_subscribed_init() {
+        use emcore::emEngine::Priority;
+        use emcore::emPanelScope::PanelScope;
+        use emcore::test_view_harness::TestViewHarness;
+
+        struct NoopEngine;
+        impl emcore::emEngine::emEngine for NoopEngine {
+            fn Cycle(&mut self, _ctx: &mut emcore::emEngineCtx::EngineCtx<'_>) -> bool {
+                false
+            }
+        }
+
+        let mut h = TestViewHarness::new();
+        let eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+
+        let mut panel = emStocksControlPanel::for_test();
+        assert!(!panel.subscribed_init);
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("cp", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = <emStocksControlPanel as emcore::emPanel::PanelBehavior>::Cycle(
+                &mut panel, &mut ectx, &mut pctx,
+            );
+        }
+
+        assert!(
+            panel.subscribed_init,
+            "first Cycle must flip subscribed_init"
+        );
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// B-001-followup A.2 — verify the constructor wires the three member-ref
+    /// `Rc<RefCell<>>`s through (strong_count goes to 2 once held both by the
+    /// test scope and by the panel).
+    #[test]
+    fn control_panel_holds_member_refs() {
+        let model = Rc::new(RefCell::new(emStocksFileModel::new(
+            std::path::PathBuf::from("/tmp/fp_a2.emStocks"),
+        )));
+        let config = Rc::new(RefCell::new(emStocksConfig::default()));
+        let list_box = Rc::new(RefCell::new(emStocksListBox::new()));
+        let look = emLook::new();
+        let _panel =
+            emStocksControlPanel::new(look, model.clone(), config.clone(), list_box.clone());
+        assert_eq!(Rc::strong_count(&model), 2);
+        assert_eq!(Rc::strong_count(&config), 2);
+        assert_eq!(Rc::strong_count(&list_box), 2);
     }
 
     /// Scratch `PanelCtx` for tests that call setters requiring a ctx param.
