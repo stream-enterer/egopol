@@ -191,18 +191,30 @@ pub trait ConstructCtx {
     fn view_context(&self) -> Option<&Rc<emContext>>;
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId;
 
-    // B-013 dialog-cells: cancel-old-dialog symmetric disconnect needs to
-    // reach the scheduler from a `<C: ConstructCtx>` mutator parameter (the
-    // mutators are dispatched both from `PanelCtx`-typed `Input` and
-    // `EngineCtx`-typed `Cycle`). Both ctx types already wrap a scheduler;
-    // exposing `disconnect` here is symmetric with the existing
-    // `register_engine` / `wake_up` / `create_signal` cluster.
+    /// B-013 dialog-cells: cancel-old-dialog symmetric disconnect.
+    ///
+    /// Why on `ConstructCtx` and not a narrower super-trait
+    /// (e.g. `DisconnectCtx`): the four `emStocksListBox` mutators that need
+    /// to disconnect an old dialog's `finish_signal -> engine` connection are
+    /// already generic over `<C: ConstructCtx>` because they create new
+    /// dialogs (which calls `register_engine` / `allocate_dialog_id` /
+    /// `create_signal`) and are dispatched both from `PanelCtx`-typed `Input`
+    /// and `EngineCtx`-typed `Cycle` paths. A separate `DisconnectCtx`
+    /// super-trait would force every callsite to take `<C: ConstructCtx +
+    /// DisconnectCtx>` — pure noise relative to the existing four-impl
+    /// surface, which already wraps a scheduler in every variant. Symmetric
+    /// with the `register_engine` / `wake_up` / `create_signal` cluster.
     fn disconnect(&mut self, signal: SignalId, engine: EngineId);
 
     /// Returns the engine whose `Cycle` is currently running, when the ctx
     /// was constructed inside an engine dispatch (`EngineCtx`); `None`
     /// otherwise (`InitCtx`, layout-only `PanelCtx`, etc.). Used by mutators
     /// that need to disconnect a previously self-connected signal.
+    ///
+    /// Lives on `ConstructCtx` for the same reason `disconnect` does: the
+    /// callers already take `<C: ConstructCtx>`, and a narrower super-trait
+    /// would buy nothing because every existing impl already knows whether
+    /// it's running inside an engine `Cycle`.
     fn current_engine_id(&self) -> Option<EngineId>;
 }
 

@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emDialog::{emDialog, DialogResult};
+use emcore::emEngineCtx::{ConstructCtx, EngineCtx};
 use emcore::emGUIFramework::DialogId;
 use emcore::emListBox::emListBox;
 use emcore::emLook::emLook;
@@ -15,6 +16,34 @@ use emcore::emRecRecord::Record;
 
 use super::emStocksConfig::{emStocksConfig, Sorting};
 use super::emStocksRec::{emStocksRec, CompareDates, Interest, StockRec};
+
+/// B-013 cancel-old-dialog helper. Centralises the four cancel-old branches
+/// in `CutStocks` / `PasteStocks` / `DeleteStocks` / `SetInterest`.
+///
+/// Invariant: `*subscribed` is set true only by the EngineCtx-typed `Cycle`
+/// path (where `current_engine_id()` is `Some`). The `debug_assert!` below
+/// catches any future call from a `PanelCtx`-typed Input path that somehow
+/// observes `*subscribed == true`, which would silently swallow the
+/// `(finish_signal -> engine)` disconnect.
+fn cancel_subscribed_dialog<C: ConstructCtx>(cc: &mut C, subscribed: &mut bool, old: &emDialog) {
+    if *subscribed {
+        debug_assert!(
+            cc.current_engine_id().is_some(),
+            "B-013 invariant: cancel-old reachable only from EngineCtx-typed paths \
+             (subscribed=true is set by Cycle, which has Some(engine_id))"
+        );
+        if let Some(eid) = cc.current_engine_id() {
+            cc.disconnect(old.finish_signal, eid);
+        }
+    }
+    *subscribed = false;
+    let did: DialogId = old.dialog_id;
+    cc.pending_actions()
+        .borrow_mut()
+        .push(Box::new(move |app, _el| {
+            app.close_dialog_by_id(did);
+        }));
+}
 
 /// Port of C++ emStocksListBox.
 pub struct emStocksListBox {
@@ -511,18 +540,7 @@ impl emStocksListBox {
                 // live `(old_finish_signal → engine)` connection until the
                 // SignalId is reaped by dialog teardown (slow leak).
                 if let Some(old) = self.delete_stocks_dialog.take() {
-                    if self.delete_subscribed {
-                        if let Some(eid) = cc.current_engine_id() {
-                            cc.disconnect(old.finish_signal, eid);
-                        }
-                    }
-                    self.delete_subscribed = false;
-                    let did: DialogId = old.dialog_id;
-                    cc.pending_actions()
-                        .borrow_mut()
-                        .push(Box::new(move |app, _el| {
-                            app.close_dialog_by_id(did);
-                        }));
+                    cancel_subscribed_dialog(cc, &mut self.delete_subscribed, &old);
                     self.delete_stocks_result.set(None);
                 }
                 let count = self.GetSelectionCount();
@@ -537,9 +555,6 @@ impl emStocksListBox {
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 dialog.show(cc);
                 self.delete_stocks_dialog = Some(dialog);
-                // Defensive — covers the no-prior-dialog case where the
-                // cancel-old branch above did not run.
-                self.delete_subscribed = false;
             }
             return; // Defer until Cycle() observes dialog confirmation.
         }
@@ -578,18 +593,7 @@ impl emStocksListBox {
                 // Cancel any in-flight dialog before creating a new one.
                 // B-013: see DeleteStocks for cancel-old-disconnect rationale.
                 if let Some(old) = self.cut_stocks_dialog.take() {
-                    if self.cut_subscribed {
-                        if let Some(eid) = cc.current_engine_id() {
-                            cc.disconnect(old.finish_signal, eid);
-                        }
-                    }
-                    self.cut_subscribed = false;
-                    let did: DialogId = old.dialog_id;
-                    cc.pending_actions()
-                        .borrow_mut()
-                        .push(Box::new(move |app, _el| {
-                            app.close_dialog_by_id(did);
-                        }));
+                    cancel_subscribed_dialog(cc, &mut self.cut_subscribed, &old);
                     self.cut_stocks_result.set(None);
                 }
                 let count = self.GetSelectionCount();
@@ -601,7 +605,6 @@ impl emStocksListBox {
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 dialog.show(cc);
                 self.cut_stocks_dialog = Some(dialog);
-                self.cut_subscribed = false;
             }
             return; // Defer until Cycle() observes dialog confirmation.
         }
@@ -633,18 +636,7 @@ impl emStocksListBox {
                 // Cancel any in-flight dialog before creating a new one.
                 // B-013: see DeleteStocks for cancel-old-disconnect rationale.
                 if let Some(old) = self.paste_stocks_dialog.take() {
-                    if self.paste_subscribed {
-                        if let Some(eid) = cc.current_engine_id() {
-                            cc.disconnect(old.finish_signal, eid);
-                        }
-                    }
-                    self.paste_subscribed = false;
-                    let did: DialogId = old.dialog_id;
-                    cc.pending_actions()
-                        .borrow_mut()
-                        .push(Box::new(move |app, _el| {
-                            app.close_dialog_by_id(did);
-                        }));
+                    cancel_subscribed_dialog(cc, &mut self.paste_subscribed, &old);
                     self.paste_stocks_result.set(None);
                 }
                 let mut dialog = emDialog::new(cc, "Really paste stocks?", look.clone());
@@ -654,7 +646,6 @@ impl emStocksListBox {
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 dialog.show(cc);
                 self.paste_stocks_dialog = Some(dialog);
-                self.paste_subscribed = false;
             }
             return Ok(Vec::new()); // Defer until Cycle() observes dialog confirmation.
         }
@@ -740,18 +731,7 @@ impl emStocksListBox {
                 // Cancel any in-flight dialog before creating a new one.
                 // B-013: see DeleteStocks for cancel-old-disconnect rationale.
                 if let Some(old) = self.interest_dialog.take() {
-                    if self.interest_subscribed {
-                        if let Some(eid) = cc.current_engine_id() {
-                            cc.disconnect(old.finish_signal, eid);
-                        }
-                    }
-                    self.interest_subscribed = false;
-                    let did: DialogId = old.dialog_id;
-                    cc.pending_actions()
-                        .borrow_mut()
-                        .push(Box::new(move |app, _el| {
-                            app.close_dialog_by_id(did);
-                        }));
+                    cancel_subscribed_dialog(cc, &mut self.interest_subscribed, &old);
                     self.interest_result.set(None);
                 }
                 let mut dialog = emDialog::new(cc, "Really change interest?", look.clone());
@@ -761,7 +741,6 @@ impl emStocksListBox {
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 dialog.show(cc);
                 self.interest_dialog = Some(dialog);
-                self.interest_subscribed = false;
                 self.interest_to_set = Some(interest);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -800,7 +779,7 @@ impl emStocksListBox {
     /// of the Rust port — not a forced divergence (no `DIVERGED` annotation).
     pub fn Cycle(
         &mut self,
-        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut EngineCtx<'_>,
         rec: &mut emStocksRec,
         config: &emStocksConfig,
     ) -> bool {

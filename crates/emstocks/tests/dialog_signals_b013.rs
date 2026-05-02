@@ -49,9 +49,7 @@ fn make_stock(id: &str, name: &str, interest: Interest) -> StockRec {
     s
 }
 
-fn populated_rec_and_lb(
-    _h: &mut TestViewHarness,
-) -> (emStocksRec, emStocksListBox, emStocksConfig) {
+fn populated_rec_and_lb() -> (emStocksRec, emStocksListBox, emStocksConfig) {
     let mut rec = emStocksRec::default();
     rec.stocks.push(make_stock("1", "Alpha", Interest::High));
     rec.stocks.push(make_stock("2", "Beta", Interest::High));
@@ -80,7 +78,7 @@ fn delete_dialog_finish_signal_drives_cycle() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
 
     {
         let mut ectx = h.engine_ctx(eid);
@@ -143,7 +141,7 @@ fn cut_dialog_finish_signal_drives_cycle() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
 
     {
         let mut ectx = h.engine_ctx(eid);
@@ -192,7 +190,7 @@ fn paste_dialog_finish_signal_drives_cycle() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
 
     let result = {
         let mut ectx = h.engine_ctx(eid);
@@ -239,7 +237,7 @@ fn interest_dialog_finish_signal_drives_cycle_ok() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
     rec.stocks.clear();
     rec.stocks.push(make_stock("1", "Alpha", Interest::Medium));
     rec.stocks.push(make_stock("2", "Beta", Interest::Medium));
@@ -295,7 +293,7 @@ fn interest_dialog_cancel_resets_interest_to_set() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
     rec.stocks.clear();
     rec.stocks.push(make_stock("1", "Alpha", Interest::Medium));
     lb.UpdateItems(&rec, &config);
@@ -355,7 +353,7 @@ fn cancel_old_dialog_disconnects_old_finish_signal() {
         PanelScope::Framework,
     );
 
-    let (mut rec, mut lb, config) = populated_rec_and_lb(&mut h);
+    let (mut rec, mut lb, config) = populated_rec_and_lb();
 
     {
         let mut ectx = h.engine_ctx(eid);
