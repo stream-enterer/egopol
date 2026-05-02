@@ -696,7 +696,11 @@ impl PanelBehavior for emBookmarkButton {
         }
     }
 
-    fn Cycle(&mut self, ectx: &mut emcore::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+    fn Cycle(
+        &mut self,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        _ctx: &mut PanelCtx,
+    ) -> bool {
         // Drain any pending click fire (D-007 deferred-fire pattern;
         // input handler — to be wired by B-013 — sets `pending_click_fire`
         // because input runs without a `SignalCtx`).
@@ -774,7 +778,6 @@ impl PanelBehavior for emBookmarkButton {
                     });
                 },
             ));
-            let _ = ctx;
         }
 
         // M-001: C++ `emBookmarkButton::Cycle` also calls `emButton::Cycle()`
