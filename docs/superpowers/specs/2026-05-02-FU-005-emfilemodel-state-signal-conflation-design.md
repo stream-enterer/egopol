@@ -1,9 +1,11 @@
 # FU-005 — emFileModel file-state-signal conflation fix
 
 **Bucket:** [FU-005](../../debug/audits/2026-04-27-signal-drift-tier-b/remediation/followups/FU-005-emfilemodel-state-signal-conflation.md)
-**Date:** 2026-05-02
+**Date:** 2026-05-02 (corrected 2026-05-02 post-plan)
 **Scope:** `emcore` (emFileModel, emRecFileModel) + `emstocks` comment cleanup.
 **Prereqs:** none.
+
+> **Correction note (2026-05-02):** The original spec proposed `emRecFileModel::GetFileStateSignal` delegate via `self.file_model.GetFileStateSignal()`. Verification during plan-writing revealed `emRecFileModel<T>` is a **standalone port** (`emRecFileModel.rs:17-18`) — it does not compose `emFileModel<T>`. The corrected approach: give `emRecFileModel<T>` its own `file_state_signal: Cell<SignalId>` lazy-allocated via `GetFileStateSignal(&self, ectx) -> SignalId`, mirroring the existing sibling `change_signal` lazy pattern at `emRecFileModel.rs:32, 56-65, 76-81`. The plan at `docs/superpowers/plans/2026-05-02-FU-005-emfilemodel-state-signal-conflation.md` is the executable reference. Phase 1's "rename before fires" gate is preserved: subscribers wire to the real id (via the lazy accessor) before Phase 2 lands.
 
 ## Summary
 
