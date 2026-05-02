@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emButton::emButton;
 use emcore::emCheckBox::emCheckBox;
 use emcore::emFileSelectionBox::emFileSelectionBox;
 use emcore::emLook::emLook;
@@ -194,15 +195,55 @@ pub(crate) struct ControlWidgets {
     /// D22: `owned_shares_first: bool` replaced with `emCheckBox`.
     pub(crate) owned_shares_first: emCheckBox,
 
-    // Prices group — FetchSharePrices, DeleteSharePrices always enabled in C++
+    // Prices group — FetchSharePrices, DeleteSharePrices always enabled in C++.
+    // B-001 Phase 2 G8 widget instances. Stored for Phase 4 D-006 subscribe
+    // wiring; underscore prefix tracks the `_sorting_buttons` /
+    // `_min_visible_interest_buttons` precedent for fields-pending-wiring.
+    // Phase 4 will drop the underscore as the connect calls land in `Cycle`.
+    /// B-001 G8 row -586: Prices group `FetchSharePrices` button.
+    pub(crate) _fetch_share_prices: emButton,
+    /// B-001 G8 row -600: Prices group `DeleteSharePrices` button.
+    pub(crate) _delete_share_prices: emButton,
+    /// B-001 G8 row -609: Prices group `GoBackInHistory` button.
+    pub(crate) _go_back_in_history: emButton,
+    /// B-001 G8 row -618: Prices group `GoForwardInHistory` button.
+    pub(crate) _go_forward_in_history: emButton,
     pub(crate) go_back_in_history_enabled: bool,
     pub(crate) go_forward_in_history_enabled: bool,
+    /// B-001 G8 row -626: Prices group `SelectedDate` editable text field.
+    /// The C++ widget is the editable surface; `selected_date: String` below
+    /// remains the cached display value populated in `UpdateControls`.
+    pub(crate) _selected_date_field: emTextField,
     pub(crate) selected_date: String,
     pub(crate) total_purchase_value: String,
     pub(crate) total_current_value: String,
     pub(crate) total_difference_value: String,
 
     // Commands group — NewStock, PasteStocks always enabled in C++
+    /// B-001 G8 row -650: Commands group `NewStock` button.
+    pub(crate) _new_stock: emButton,
+    /// B-001 G8 row -658: Commands group `CutStocks` button.
+    pub(crate) _cut_stocks: emButton,
+    /// B-001 G8 row -666: Commands group `CopyStocks` button.
+    pub(crate) _copy_stocks: emButton,
+    /// B-001 G8 row -674: Commands group `PasteStocks` button.
+    pub(crate) _paste_stocks: emButton,
+    /// B-001 G8 row -682: Commands group `DeleteStocks` button.
+    pub(crate) _delete_stocks: emButton,
+    /// B-001 G8 row -690: Commands group `SelectAll` button.
+    pub(crate) _select_all: emButton,
+    /// B-001 G8 row -698: Commands group `ClearSelection` button.
+    pub(crate) _clear_selection: emButton,
+    /// B-001 G8 row -706: Commands group `SetHighInterest` button.
+    pub(crate) _set_high_interest: emButton,
+    /// B-001 G8 row -714: Commands group `SetMediumInterest` button.
+    pub(crate) _set_medium_interest: emButton,
+    /// B-001 G8 row -722: Commands group `SetLowInterest` button.
+    pub(crate) _set_low_interest: emButton,
+    /// B-001 G8 row -730: Commands group `ShowFirstWebPages` button.
+    pub(crate) _show_first_web_pages: emButton,
+    /// B-001 G8 row -738: Commands group `ShowAllWebPages` button.
+    pub(crate) _show_all_web_pages: emButton,
     pub(crate) cut_stocks_enabled: bool,
     pub(crate) copy_stocks_enabled: bool,
     pub(crate) delete_stocks_enabled: bool,
@@ -215,8 +256,14 @@ pub(crate) struct ControlWidgets {
     pub(crate) show_all_web_pages_enabled: bool,
 
     // Search group — FindSelected always enabled in C++
+    /// B-001 G8 row -749: Search group `FindSelected` button.
+    pub(crate) _find_selected: emButton,
     /// D22: `search_text: String` replaced with `emTextField`.
     pub(crate) search_text: emTextField,
+    /// B-001 G8 row -764: Search group `FindNext` button.
+    pub(crate) _find_next: emButton,
+    /// B-001 G8 row -772: Search group `FindPrevious` button.
+    pub(crate) _find_previous: emButton,
     pub(crate) find_next_enabled: bool,
     pub(crate) find_previous_enabled: bool,
 }
@@ -308,13 +355,34 @@ impl ControlWidgets {
             _sorting_buttons: sorting_buttons,
             owned_shares_first: emCheckBox::new(cc, "Owned Shares First", look.clone()),
 
+            // Prices group buttons (B-001 G8 rows -586..-618, -626 textfield).
+            // Captions mirror C++ emStocksControlPanel.cpp:576-630.
+            _fetch_share_prices: emButton::new(cc, "Fetch\nPrices", look.clone()),
+            _delete_share_prices: emButton::new(cc, "Delete Prices", look.clone()),
+            _go_back_in_history: emButton::new(cc, "Go Back In History", look.clone()),
+            _go_forward_in_history: emButton::new(cc, "Go Forward In History", look.clone()),
             go_back_in_history_enabled: false,
             go_forward_in_history_enabled: false,
+            _selected_date_field: emTextField::new(cc, look.clone()),
             selected_date: String::new(),
             total_purchase_value: String::new(),
             total_current_value: String::new(),
             total_difference_value: String::new(),
 
+            // Commands group buttons (B-001 G8 rows -650..-738).
+            // Captions mirror C++ emStocksControlPanel.cpp:644-741.
+            _new_stock: emButton::new(cc, "New", look.clone()),
+            _cut_stocks: emButton::new(cc, "Cut", look.clone()),
+            _copy_stocks: emButton::new(cc, "Copy", look.clone()),
+            _paste_stocks: emButton::new(cc, "Paste", look.clone()),
+            _delete_stocks: emButton::new(cc, "Delete", look.clone()),
+            _select_all: emButton::new(cc, "Select All", look.clone()),
+            _clear_selection: emButton::new(cc, "Clear Selection", look.clone()),
+            _set_high_interest: emButton::new(cc, "Set High Interest", look.clone()),
+            _set_medium_interest: emButton::new(cc, "Set Medium Interest", look.clone()),
+            _set_low_interest: emButton::new(cc, "Set Low Interest", look.clone()),
+            _show_first_web_pages: emButton::new(cc, "Show First Web Pages", look.clone()),
+            _show_all_web_pages: emButton::new(cc, "Show All Web Pages", look.clone()),
             cut_stocks_enabled: false,
             copy_stocks_enabled: false,
             delete_stocks_enabled: false,
@@ -326,7 +394,12 @@ impl ControlWidgets {
             show_first_web_pages_enabled: false,
             show_all_web_pages_enabled: false,
 
-            search_text: emTextField::new(cc, look),
+            // Search group (B-001 G8 rows -749, -764, -772).
+            // Captions mirror C++ emStocksControlPanel.cpp:751-789.
+            _find_selected: emButton::new(cc, "Find Selected", look.clone()),
+            search_text: emTextField::new(cc, look.clone()),
+            _find_next: emButton::new(cc, "Find Next", look.clone()),
+            _find_previous: emButton::new(cc, "Find Previous", look),
             find_next_enabled: false,
             find_previous_enabled: false,
         }
@@ -751,6 +824,58 @@ mod tests {
         assert!(!widgets.auto_update_dates.IsChecked());
         assert!(!widgets.triggering_opens_web_page.IsChecked());
         assert!(!widgets.owned_shares_first.IsChecked());
+    }
+
+    /// B-001 Phase 2 G8 — confirms 20 emButton + 1 emTextField widget instances
+    /// were instantiated by AutoExpand and that their signals are allocated
+    /// (non-null, distinct), making them ready for Phase 4 D-006 subscribe wiring.
+    #[test]
+    fn auto_expand_creates_g8_widget_instances() {
+        let mut __init = TestInit::new();
+        let mut panel = make_panel();
+        panel.AutoExpand(&mut __init.ctx());
+        let w = panel.widgets.as_ref().unwrap();
+
+        let click_sigs = [
+            w._fetch_share_prices.click_signal,
+            w._delete_share_prices.click_signal,
+            w._go_back_in_history.click_signal,
+            w._go_forward_in_history.click_signal,
+            w._new_stock.click_signal,
+            w._cut_stocks.click_signal,
+            w._copy_stocks.click_signal,
+            w._paste_stocks.click_signal,
+            w._delete_stocks.click_signal,
+            w._select_all.click_signal,
+            w._clear_selection.click_signal,
+            w._set_high_interest.click_signal,
+            w._set_medium_interest.click_signal,
+            w._set_low_interest.click_signal,
+            w._show_first_web_pages.click_signal,
+            w._show_all_web_pages.click_signal,
+            w._find_selected.click_signal,
+            w._find_next.click_signal,
+            w._find_previous.click_signal,
+        ];
+        assert_eq!(click_sigs.len(), 19, "19 emButton click signals expected");
+        // All click signals must be distinct (one signal per button) — distinctness
+        // implies allocation succeeded for each.
+        let unique: std::collections::HashSet<_> = click_sigs.iter().copied().collect();
+        assert_eq!(unique.len(), 19, "click signals must be distinct");
+        // SelectedDate emTextField widget signal must also be distinct from all
+        // click signals — captioned widget, lives separately from the cached
+        // `selected_date: String` display value.
+        assert!(
+            !unique.contains(&w._selected_date_field.text_signal),
+            "selected_date_field text signal collides with a button click signal"
+        );
+        assert_eq!(w.selected_date, "");
+
+        // Captions sanity-check a sample of buttons (mirrors C++ source-order).
+        assert_eq!(w._fetch_share_prices.GetCaption(), "Fetch\nPrices");
+        assert_eq!(w._delete_share_prices.GetCaption(), "Delete Prices");
+        assert_eq!(w._new_stock.GetCaption(), "New");
+        assert_eq!(w._find_previous.GetCaption(), "Find Previous");
     }
 
     #[test]
