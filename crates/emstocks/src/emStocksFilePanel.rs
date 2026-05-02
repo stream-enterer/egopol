@@ -402,6 +402,16 @@ impl PanelBehavior for emStocksFilePanel {
         }
 
         // Poll ListBox confirmation dialogs (C++: Cycle calls into ListBox state machine)
+        //
+        // C-1 RESOLUTION (Adversarial Review 2026-05-01, B-017 row 2):
+        // The previous shape `lb.Cycle(ectx, model.GetWritableRec(ectx), config)`
+        // takes two `&mut ectx` borrows simultaneously. The split-borrow shape
+        // below sequences them: first call the rec-mutation half of the split
+        // `GetWritableRec` (which only sets `dirty`/`dirty_unobserved` and
+        // returns `&mut emStocksRec` — no scheduler touch), drive `lb.Cycle`,
+        // then after lb.Cycle returns advance the SaveTimer via the
+        // `touch_save_timer(ectx)` half, gated on `dirty_since_last_touch()`.
+        // This keeps `&mut ectx` exclusive across both halves.
         let list_box_busy = {
             let Self {
                 list_box,
@@ -410,12 +420,20 @@ impl PanelBehavior for emStocksFilePanel {
                 ..
             } = self;
             if let Some(lb) = list_box.as_mut() {
+                // Rec-mutation half: takes only `&mut model`, no ectx use.
                 let rec = model.GetWritableRec(ectx);
                 lb.Cycle(ectx, rec, config)
             } else {
                 false
             }
         };
+
+        // Timer-arming half, sequenced after `lb.Cycle` returns. Gated on
+        // the paired latch so we re-arm only when lb.Cycle actually wrote
+        // through GetWritableRec.
+        if self.model.dirty_since_last_touch() {
+            self.model.touch_save_timer(ectx);
+        }
 
         state_changed || self.fetch_dialog.is_some() || list_box_busy
     }
