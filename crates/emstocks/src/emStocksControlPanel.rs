@@ -196,10 +196,21 @@ pub(crate) struct ControlWidgets {
     pub(crate) owned_shares_first: emCheckBox,
 
     // Prices group — FetchSharePrices, DeleteSharePrices always enabled in C++.
-    // B-001 Phase 2 G8 widget instances. Stored for Phase 4 D-006 subscribe
-    // wiring; underscore prefix tracks the `_sorting_buttons` /
+    // B-001 Phase 2 G8 widget instances. Stored for D-006 subscribe wiring;
+    // underscore prefix tracks the `_sorting_buttons` /
     // `_min_visible_interest_buttons` precedent for fields-pending-wiring.
-    // Phase 4 will drop the underscore as the connect calls land in `Cycle`.
+    //
+    // TODO(B-001-controlpanel-followup): the originally-planned Phase 4.1
+    // wiring (rename to drop the `_` prefix and connect signals in `Cycle`)
+    // was deferred on 2026-05-01. `emStocksControlPanel` currently has no
+    // `PanelBehavior::Cycle` impl, no parent instantiation, and no
+    // production driving path in the Rust codebase, so D-006 wiring here
+    // would be cargo-cult. A structural pre-phase that lands
+    // PanelBehavior + parent instantiation is required before re-executing
+    // Phase 4.1/4.2/4.3 (covers ControlPanel-37 + ItemPanel-29 + ItemChart-2;
+    // 67 of 71 B-001 rows). See
+    // docs/superpowers/specs/2026-04-27-B-001-no-wire-emstocks-design.md
+    // §"Phase 4 Partial Merge — 2026-05-01".
     /// B-001 G8 row -586: Prices group `FetchSharePrices` button.
     pub(crate) _fetch_share_prices: emButton,
     /// B-001 G8 row -600: Prices group `DeleteSharePrices` button.

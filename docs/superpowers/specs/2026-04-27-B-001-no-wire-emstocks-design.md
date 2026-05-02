@@ -459,3 +459,46 @@ None. All findings folded into the body. The Adversarial Review section retained
 ### Dispatchability
 
 Design body now matches the plan's superseding guidance throughout: D-008 A1 combined-form accessors, `&mut impl SignalCtx` mutator bound, definitive row -566 click-signal, ItemChart engine attachment pre-condition, FetchPricesDialog cascade, two distinct CategoryPanel types, `Cell<SignalId>` derive handling, ListBox parent ownership pre-check, and the `subscribed_widgets` non-DIVERGED instruction. Implementer reading the design body alone will receive corrected guidance without needing to cross-reference the Adversarial Review.
+
+## Phase 4 Partial Merge — 2026-05-01
+
+The 5-phase plan at `docs/superpowers/plans/2026-05-01-B-001-no-wire-emstocks.md` shipped Phases 1-3 in full and Phase 4 partially, then closed via a final-gate Phase 5 reconciliation. Net wired rows: **4 of 71**. Remaining **67 rows deferred** to a follow-up bucket (working name `B-001-followup`).
+
+### What landed (4 of 71 rows)
+
+- **Phase 1 — accessor gap fills (G1/G2/G3/G4 + G5/G6 delegators).** `3c355b81`. Producer-side accessors and mutator-fire wiring. G3 ports `emStocksPricesFetcher::change_signal` + the four internal `Signal(ChangeSignal)` fires at `cpp:70/134/264/272` and threads `&mut impl SignalCtx` through Cycle / StartProcess / PollProcess / SetFailed / AddStockIds and the cascading `emStocksFetchPricesDialog::Cycle / AddStockIds`. **Did not widen** to port the fetcher's own Cycle subscribing to `FileModel::GetChangeSignal` + `GetFileStateSignal` (cpp:38-39); see I-1 below.
+- **Phase 2 — widget instances (G8).** `65f45229`. 20 `emButton` fields + the `SelectedDate` `emTextField` added to `ControlWidgets`. Underscore-prefixed pending Phase 4.1 wiring.
+- **Phase 3 — ListBox FileModel/Config refs + parent `Rc<RefCell<>>` migration.** `ce7e85b4`. `emStocksListBox` now holds `Option<Rc<RefCell<emStocksFileModel>>>` + `Option<Rc<RefCell<emStocksConfig>>>`, mirroring the C++ `FileModel & / emStocksConfig &` member references with the (a) cross-Cycle reference justification.
+- **Phase 4 (partial) — per-panel D-006 subscribes.** `7ce5f674`. Tasks **4.4 (FilePanel-255)** and **4.5 (ListBox-51 / -52 / -53)** merged: 4 rows (1 FilePanel + 3 ListBox).
+
+### What deferred (67 of 71 rows)
+
+- **Task 4.1 — `emStocksControlPanel-37` (37 rows).** Deferred.
+- **Task 4.2 — `emStocksItemPanel-29` (29 rows).** Deferred.
+- **Task 4.3 — `emStocksItemChart-2` (2 rows).** Deferred.
+
+**Rationale (NEEDS_CONTEXT findings from the Phase 4 implementer):**
+
+1. `emStocksControlPanel`, `emStocksItemPanel`, and `emStocksItemChart` currently lack a `PanelBehavior::Cycle` impl — there is no driven `Cycle` body in which to subscribe a `SignalId` and re-run `UpdateControls` / `UpdatePriceText` / `UpdateMagInfo`.
+2. They lack parent instantiation: no production driving path constructs them inside the current Rust panel tree. `emStocksFilePanel` does not yet build a `ControlPanel` child; `emStocksListBox` does not yet build per-row `ItemPanel` / `ItemChart` children.
+3. Their `file_model` / `config` references — required as the upstream subscribe targets — are not yet plumbed onto the panel structs (they live only on `emStocksFilePanel` and, post-Phase 3, `emStocksListBox`).
+
+D-006 wiring written against (1)+(2)+(3) absent would be cargo-cult: code that compiles, passes lints, and is provably never executed. Per the Port Ideology's "preserved design intent" rule, the right move is to refuse to wire and surface the structural pre-phase as work.
+
+### B-001-followup (proposed)
+
+A successor bucket scoped to the structural pre-phase:
+
+1. Add `PanelBehavior` impl (with `Cycle`) to `emStocksControlPanel`, `emStocksItemPanel`, `emStocksItemChart`.
+2. Wire parent instantiation: `emStocksFilePanel` → `emStocksControlPanel`; `emStocksListBox` → per-row `emStocksItemPanel` / `emStocksItemChart`.
+3. Plumb `file_model` / `config` references onto each panel struct (mirror C++ member references with `Rc<RefCell<>>` per the Phase 3 precedent).
+
+Once (1)-(3) land, Phase 4.1/4.2/4.3 of the original plan can be re-executed verbatim against the now-real `Cycle` bodies.
+
+### I-1 (cross-bucket): B-017 row 1 still partially blocked
+
+The B-017 design's I-1 finding (`docs/superpowers/specs/2026-04-27-B-017-polling-no-acc-emstocks-design.md` §I-1) flagged that B-001 G3's scope MAY need to widen to port the fetcher's own Cycle subscribing to `FileModel::GetChangeSignal` + `GetFileStateSignal` (`emStocksPricesFetcher.cpp:38-39`). **Phase 1 G3 as landed did not widen.** Consequence per I-1: B-017 row 1 can subscribe to `Fetcher.GetChangeSignal()` correctly, but the fetcher itself will not *fire* that signal in response to FileModel transitions, so the dialog's `UpdateControls` will not run for those transitions. B-017 row 1 should not flip to `merged` until either G3 widens or the gap is explicitly documented and tested.
+
+### Annotation + lint posture
+
+`cargo xtask annotations` clean. No `#[allow]` / `#[expect]` in `crates/emstocks/`. Underscore-prefixed `ControlWidgets` fields carry a `TODO(B-001-controlpanel-followup)` block at the field declaration explaining the deferral and pointing to this section.

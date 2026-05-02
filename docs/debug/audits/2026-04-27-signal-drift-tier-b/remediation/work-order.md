@@ -475,3 +475,23 @@ Six remaining designs (B-001, B-002, B-012, B-013, B-016, B-017) had their adver
 5. B-013 — 4 rows
 6. B-012 — 7 rows
 7. B-001 — 71 rows (plan-driven), then back-fill B-017 row 1
+
+### 2026-05-01 — B-001 Phase 1-5 partial merge (4 of 71 rows; 67 deferred)
+
+Plan `docs/superpowers/plans/2026-05-01-B-001-no-wire-emstocks.md` shipped Phases 1-3 in full and Phase 4 partially, with a Phase 5 final-gate reconciliation.
+
+- **Phase 1 (accessor gap fills G1/G2/G3/G4 + G5/G6 delegators) → merged at `3c355b81`.** Producer-side accessors + mutator-fire wiring. G3 covers `emStocksPricesFetcher`'s 4 internal fires (cpp:70/134/264/272) but did NOT widen to port the fetcher's own Cycle subscribing to FileModel signals (cpp:38-39); see I-1 below.
+- **Phase 2 (widget instances G8) → merged at `65f45229`.** 20 `emButton` fields + `SelectedDate` `emTextField` on `ControlWidgets`, underscore-prefixed pending Phase 4.1 wiring.
+- **Phase 3 (ListBox FileModel/Config Rc refs + parent migration) → merged at `ce7e85b4`.** `emStocksListBox` now holds `Option<Rc<RefCell<…>>>` mirroring C++ member references.
+- **Phase 4 (per-panel D-006 subscribes) → partial at `7ce5f674`.** Tasks **4.4 (FilePanel-255)** + **4.5 (ListBox-51/-52/-53)** merged (4 rows). Tasks **4.1 (ControlPanel-37)**, **4.2 (ItemPanel-29)**, **4.3 (ItemChart-2)** deferred — those panels lack `PanelBehavior::Cycle`, parent instantiation, and plumbed `file_model`/`config` refs in the Rust tree; D-006 wiring without those would be cargo-cult.
+- **Phase 5 (final gate + reconciliation) → merged at this commit.** `cargo xtask annotations` clean; no `#[allow]`/`#[expect]` in `crates/emstocks/`; `cargo fmt` / `cargo clippy --workspace --all-targets -D warnings` / `cargo-nextest ntr` green. `ControlWidgets` underscore-prefixed fields carry a `TODO(B-001-controlpanel-followup)` block. Design doc updated with a "Phase 4 Partial Merge — 2026-05-01" section.
+- **Aggregate status:** **4 of 71 rows wired**, 67 rows deferred to a follow-up bucket.
+
+**Suggested next step — open `B-001-followup` bucket** scoped to the structural pre-phase:
+1. Add `PanelBehavior::Cycle` impls on `emStocksControlPanel` / `emStocksItemPanel` / `emStocksItemChart`.
+2. Wire parent instantiation (`emStocksFilePanel` → `ControlPanel`; `emStocksListBox` → per-row `ItemPanel`/`ItemChart`).
+3. Plumb `file_model` / `config` `Rc<RefCell<>>` refs onto each panel struct.
+
+Once (1)-(3) land, the original Phase 4.1/4.2/4.3 can be re-executed verbatim.
+
+**I-1 (cross-bucket): B-017 row 1 still partially blocked.** The 2026-05-01 amendment-pass entry above noted that B-017 row 1 awaits B-001 G3 widening for upstream `FileModel::GetChangeSignal` + `GetFileStateSignal` subscribes inside `emStocksPricesFetcher::Cycle` (cpp:38-39). **Phase 1 G3 did not widen.** B-017 row 1 can technically dispatch (the producer accessor exists) but will be silently undertested per the I-1 finding until either (a) G3's scope is widened in a follow-up or (b) the gap is explicitly documented and exercised by a regression test. Recommendation: fold the G3 widening into `B-001-followup` and gate B-017 row 1's `merged` flip on it.
