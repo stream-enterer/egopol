@@ -165,6 +165,13 @@ Verification-budget exceeded; each split into its own follow-up bucket rather th
 - `crates/emmain/src/emVirtualCosmos.rs::emVirtualCosmosItemPanel::update_needed` — C++ has `UpdateFromRecNeeded` set in `OnRecChanged` (cpp:480-485) and drained in `Cycle` via `UpdateFromRec` (cpp:304-307, cpp:511-543). Rust port has the field and setters but no `UpdateFromRec` method and no Cycle drain — incomplete port (fidelity-bug pending UpdateFromRec port). Trigger: emVirtualCosmosItemPanel port-completion bucket.
 - `crates/emcore/src/emView.rs::emView::needs_animator_abort` — VIEW-003 tracking ID. Set by scroll/zoom mutators; consumed by the winit window loop. Whether this is a D-007 candidate (synchronous abort at the mutation site) or dependency-forced retention (winit event-loop boundary forces deferral) requires reading the full animator-abort dispatch chain plus winit redraw integration. Trigger: VIEW-003 audit bucket.
 
+## FU-001 post-implementation divergences
+
+Surfaced during SDD execution of the FU-001 plan; not present in the original brainstorm scratch.
+
+- **`emStocksFileModel.PricesFetchingDialog: emCrossPtr<>` is now dead.** FU-001 added a new strong-owner field `prices_fetching_dialog: Option<emStocksFetchPricesDialog>` because `emCrossPtr` in this codebase is weak-only and cannot own. The legacy `PricesFetchingDialog: emCrossPtr<>` slot was preserved alongside it for surface compatibility but is no longer set or read. Trigger to clean up: when emCrossPtr is either (a) fixed to admit ownership semantics matching C++ `emCrossPtr<emStocksFetchPricesDialog>`, or (b) formally retired in favor of `Option<T>` + a strong owner. Pick one and sweep call sites.
+- **Caller-side `dialog->AddListBox(*this)` invocation in `StartToFetchSharePrices`.** C++ has the listbox method invoke `dialog->AddListBox(*this)` internally. Rust safe-mode cannot synthesize `Rc<RefCell<Self>>` from `&mut self` and no `self_weak` field is present on `emStocksListBox`. FU-001's plan anticipated this (Task 3.5 escalation) and lifted the call to the reaction caller, which holds `Rc<RefCell<emStocksListBox>>`. Observable behavior matches C++. Trigger to revisit: if a `self_weak` infrastructure lands on emStocksListBox (or panel-tree types in general), pull the AddListBox call back inside the method to match C++ exactly.
+
 ## Source / origin notes
 
 This dump was compiled at the close of the FU-001 brainstorm on 2026-05-02. It mixes:
