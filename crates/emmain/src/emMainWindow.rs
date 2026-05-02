@@ -369,6 +369,29 @@ where
     MAIN_WINDOW.with(|cell| cell.borrow_mut().as_mut().map(f))
 }
 
+/// Enqueue a deferred action that runs with `&mut emMainWindow` and `&mut App`.
+///
+/// The closure executes during the next `pending_actions` drain on the winit
+/// main loop tick. This composes the `with_main_window` thread-local accessor
+/// with the framework's `pending_actions` rail so reaction bodies inside
+/// `Cycle` (which has `EngineCtx` but not `&mut App`) can invoke
+/// `emMainWindow` methods that require `&mut App`.
+///
+/// Mirrors the pattern at `emBookmarks.rs:748` and `emMainWindow::Duplicate`
+/// (line 233). Use from `Cycle` reaction bodies that need to invoke
+/// MainWindow methods with the `&mut App` parameter (`Duplicate`,
+/// `ToggleFullscreen`, `Quit`).
+pub(crate) fn enqueue_main_window_action<F>(ectx: &mut EngineCtx<'_>, action: F)
+where
+    F: FnOnce(&mut emMainWindow, &mut App) + 'static,
+{
+    ectx.pending_actions
+        .borrow_mut()
+        .push(Box::new(move |app, _event_loop| {
+            with_main_window(|mw| action(mw, app));
+        }));
+}
+
 /// Engine for emMainWindow, matching C++ emMainWindow::Cycle()
 /// (emMainWindow.cpp:174-190).
 pub(crate) struct MainWindowEngine {
@@ -1445,6 +1468,66 @@ mod tests {
         assert!(!mw.to_close);
         mw.Close();
         assert!(mw.to_close);
+    }
+
+    /// FU-002: `enqueue_main_window_action` pushes exactly one closure onto the
+    /// `EngineCtx::pending_actions` rail. This is the load-bearing observable
+    /// for the three wired click reactions (BtNewWindow / BtFullscreen /
+    /// BtQuit) — each reaction body is a one-line call to this helper, so
+    /// asserting the helper enqueues asserts the reactions enqueue.
+    ///
+    /// The closure body itself (`mw.Duplicate(app)` / `mw.ToggleFullscreen(app)`
+    /// / `mw.Quit(app)`) is covered transitively by the keyboard paths in
+    /// `emMainWindow::Input` (F4 / F11 / Shift+Alt+F4) which call the same
+    /// methods synchronously; we do not spin up a winit event loop here.
+    #[test]
+    fn fu002_enqueue_main_window_action_pushes_one_deferred_action() {
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        use std::rc::Rc;
+
+        use emcore::emEngine::EngineId;
+        use emcore::emScheduler::EngineScheduler;
+
+        let mut sched = EngineScheduler::new();
+        let root_ctx = emContext::NewRoot();
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let mut ectx = emcore::emEngineCtx::EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            view_context: None,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id: EngineId::default(),
+            pending_actions: &pa,
+        };
+
+        assert_eq!(pa.borrow().len(), 0, "precondition: queue starts empty");
+
+        enqueue_main_window_action(&mut ectx, |_mw, _app| {
+            // Body intentionally empty: the production reaction bodies call
+            // `mw.Duplicate(app)` / `mw.ToggleFullscreen(app)` / `mw.Quit(app)`
+            // — covered by the keyboard paths in `emMainWindow::Input`.
+        });
+
+        assert_eq!(
+            pa.borrow().len(),
+            1,
+            "FU-002: helper must enqueue exactly one deferred action"
+        );
     }
 }
 
