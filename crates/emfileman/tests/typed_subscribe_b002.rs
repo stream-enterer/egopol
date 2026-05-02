@@ -168,10 +168,7 @@ fn link_panel_model_mutator_fires_change_signal_synchronously() {
     // Mutate the model with a real ectx — fires ChangeSignal synchronously.
     {
         let mut sc = h.sched_ctx();
-        model
-            .borrow_mut()
-            .rec_model_mut_for_test()
-            .hard_reset(&mut sc);
+        model.borrow_mut().hard_reset(&mut sc);
     }
 
     // The change_signal slot is allocated (the panel's first-Cycle init

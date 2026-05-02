@@ -252,12 +252,11 @@ impl emFileLinkModel {
         self.rec_model.GetChangeSignal(ectx)
     }
 
-    /// Test-only accessor for the inner `emRecFileModel`. Used by B-002
-    /// integration tests to invoke mutators (e.g. `hard_reset`) and observe
-    /// the synchronous ChangeSignal fire.
-    #[doc(hidden)]
-    pub fn rec_model_mut_for_test(&mut self) -> &mut emRecFileModel<emFileLinkData> {
-        &mut self.rec_model
+    /// Port of inherited C++ `emRecFileModel::HardReset()`. Delegates to
+    /// the inner `emRecFileModel` so callers can drive a synchronous
+    /// ChangeSignal fire without reaching through a test-only accessor.
+    pub fn hard_reset(&mut self, ectx: &mut impl SignalCtx) {
+        self.rec_model.hard_reset(ectx);
     }
 }
 
