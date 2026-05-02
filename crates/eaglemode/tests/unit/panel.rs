@@ -125,7 +125,21 @@ fn notice_flag_propagation() {
     let mut view =
         emcore::emView::emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
-    view.HandleNotice(&mut tree, &mut sched, None, None);
+    let mut _dummy_fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+    let _dummy_fw_cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+        std::cell::RefCell::new(None);
+    let _dummy_pa: std::rc::Rc<
+        std::cell::RefCell<Vec<emcore::emEngineCtx::FrameworkDeferredAction>>,
+    > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    view.HandleNotice(
+        &mut tree,
+        &mut sched,
+        None,
+        None,
+        &mut _dummy_fw,
+        &_dummy_fw_cb,
+        &_dummy_pa,
+    );
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).is_empty());

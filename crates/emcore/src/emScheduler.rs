@@ -814,6 +814,14 @@ impl EngineScheduler {
         }
     }
 
+    /// Test helper: returns true iff there are signals pending dispatch.
+    /// Used by `TestSched::Drop` to assert loud-fail when a test fires signals
+    /// without draining them, preventing silent regression masking.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn has_pending_signals(&self) -> bool {
+        !self.inner.pending_signals.is_empty()
+    }
+
     /// Test helper: returns true iff the given engine is currently queued
     /// to run in some wake queue. Used by F010 regression tests to assert
     /// that a specific engine — not just *some* engine — was woken.

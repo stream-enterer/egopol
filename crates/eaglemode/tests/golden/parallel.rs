@@ -37,7 +37,17 @@ macro_rules! require_golden {
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     let mut ts = TestSched::new();
     for _ in 0..5 {
-        view.HandleNotice(tree, ts.sched_mut(), None, None);
+        ts.with(|sc| {
+            view.HandleNotice(
+                tree,
+                sc.scheduler,
+                None,
+                None,
+                sc.framework_actions,
+                sc.framework_clipboard,
+                sc.pending_actions,
+            )
+        });
         ts.with(|sc| view.Update(tree, sc));
     }
 }

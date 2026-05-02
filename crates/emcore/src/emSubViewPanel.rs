@@ -515,12 +515,25 @@ impl PanelBehavior for emSubViewPanel {
         // each frame via the outer scheduler; Rust mirrors the same path.
         if keep_awake {
             let sub_view_ctx = Rc::clone(&self.sub_view.Context);
-            self.sub_view.HandleNotice(
-                &mut self.sub_tree,
-                ectx.scheduler,
-                Some(ectx.root_context),
-                Some(&sub_view_ctx),
-            );
+            {
+                let crate::emEngineCtx::EngineCtx {
+                    ref mut scheduler,
+                    root_context,
+                    ref mut framework_actions,
+                    framework_clipboard,
+                    pending_actions,
+                    ..
+                } = *ectx;
+                self.sub_view.HandleNotice(
+                    &mut self.sub_tree,
+                    scheduler,
+                    Some(root_context),
+                    Some(&sub_view_ctx),
+                    framework_actions,
+                    framework_clipboard,
+                    pending_actions,
+                );
+            }
             let mut sc = ectx.as_sched_ctx();
             self.sub_view.Update(&mut self.sub_tree, &mut sc);
         }

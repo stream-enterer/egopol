@@ -3962,12 +3962,32 @@ mod tests {
     use std::rc::Rc;
 
     /// Drive 5 HandleNotice + Update rounds.
+    ///
+    /// Tests using this helper care about structural outcomes (tree shape,
+    /// threshold values), not signal observations. Pending signals fired by
+    /// behaviors during the settle rounds are discarded explicitly — the
+    /// intent is declared at the call site rather than relying on a silent
+    /// Drop that would mask real regressions in other tests.
     fn settle(tree: &mut PanelTree, view: &mut emView, ctx: &Rc<emContext>) {
         let mut ts = TestSched::new();
         for _ in 0..5 {
-            ts.with(|sc| view.HandleNotice(tree, sc.scheduler, Some(ctx), None));
+            ts.with(|sc| {
+                view.HandleNotice(
+                    tree,
+                    sc.scheduler,
+                    Some(ctx),
+                    None,
+                    sc.framework_actions,
+                    sc.framework_clipboard,
+                    sc.pending_actions,
+                )
+            });
             ts.with(|sc| view.Update(tree, sc));
         }
+        // Discard signals fired during the settle rounds — these tests check
+        // structural outcomes, not which signals were emitted. Explicit call
+        // required because TestSched::Drop now loud-fails on non-empty queues.
+        ts.clear_pending_signals_for_test_discard();
     }
 
     #[test]
