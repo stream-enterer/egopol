@@ -1,4 +1,10 @@
 fn main() {
+    // Hang-investigation instrumentation (2026-05-02 plan rev 3): install
+    // SIGUSR1 marker handler so the operator can stamp HANG_START / HANG_END
+    // into /tmp/em_instr.log via `kill -USR1 <pid>`. No-op when EM_INSTR_FD
+    // is unset.
+    emcore::emInstr::install_marker_handler();
+
     // Enable dlog! tracing if EMCORE_DLOG=1 is set in the environment.
     // Mirrors Eagle Mode C++ `emEnableDLog` toggled by `--dlog` CLI flag;
     // env var chosen here so debug-instrumented runs need no flag plumbing.

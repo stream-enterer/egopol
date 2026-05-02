@@ -9,9 +9,80 @@
 
 use std::cell::Cell;
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::OnceLock;
 
 static INSTR_FD: AtomicI32 = AtomicI32::new(-1);
 static INSTR_INIT: std::sync::Once = std::sync::Once::new();
+static WALL_T0: OnceLock<std::time::Instant> = OnceLock::new();
+
+/// Microseconds since the first call (per process). Cheap. All
+/// instrumentation lines should include this so the analyzer can
+/// reconstruct the timeline regardless of which subsystem wrote them.
+pub fn wall_us() -> u64 {
+    let t0 = WALL_T0.get_or_init(std::time::Instant::now);
+    t0.elapsed().as_micros() as u64
+}
+
+extern "C" fn marker_signal_handler(_sig: libc::c_int) {
+    // Async-signal-safe write of a MARKER line. We avoid `format!` and
+    // any allocator in the handler — `clock_gettime(CLOCK_MONOTONIC)`
+    // (used by `Instant::elapsed`) and `write(2)` are both AS-safe on
+    // Linux. Decimal formatting is hand-rolled into a stack buffer.
+    let t = wall_us();
+    let f = INSTR_FD.load(Ordering::Relaxed);
+    if f < 0 {
+        return;
+    }
+    let mut buf = [0u8; 64];
+    let prefix = b"MARKER|wall_us=";
+    let mut n = 0usize;
+    for &b in prefix {
+        buf[n] = b;
+        n += 1;
+    }
+    // decimal encode `t` (u64) into buf at offset n
+    let mut tmp = [0u8; 20];
+    let mut i = 0usize;
+    let mut v = t;
+    if v == 0 {
+        tmp[0] = b'0';
+        i = 1;
+    } else {
+        while v > 0 {
+            tmp[i] = b'0' + (v % 10) as u8;
+            v /= 10;
+            i += 1;
+        }
+    }
+    while i > 0 {
+        i -= 1;
+        buf[n] = tmp[i];
+        n += 1;
+    }
+    buf[n] = b'|';
+    n += 1;
+    for &b in b"sig=USR1\n" {
+        buf[n] = b;
+        n += 1;
+    }
+    unsafe {
+        libc::write(f, buf.as_ptr() as *const _, n);
+    }
+}
+
+pub fn install_marker_handler() {
+    // Force WALL_T0 initialization now (before any signal can fire), so
+    // marker timestamps are anchored to process start, not to first
+    // signal delivery.
+    let _ = wall_us();
+    unsafe {
+        let mut sa: libc::sigaction = std::mem::zeroed();
+        sa.sa_sigaction = marker_signal_handler as *const () as usize;
+        sa.sa_flags = libc::SA_RESTART;
+        libc::sigemptyset(&mut sa.sa_mask);
+        libc::sigaction(libc::SIGUSR1, &sa, std::ptr::null_mut());
+    }
+}
 
 fn fd() -> i32 {
     INSTR_INIT.call_once(|| {
