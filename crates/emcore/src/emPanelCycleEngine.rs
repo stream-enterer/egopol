@@ -28,6 +28,17 @@ pub(crate) struct PanelCycleEngineFirstCycleProbe {
     pub captured_slice: std::rc::Rc<std::cell::Cell<Option<u64>>>,
 }
 
+/// F019: Counts every `Cycle` dispatch on the engine. Used by the F019
+/// proof-of-fix test to assert the panel re-cycles only on observable
+/// state-change events (FileStateSignal fires), not on every scheduler
+/// slice — i.e., that the retired `stay_awake`-while-loading polling
+/// has not regressed.
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Clone)]
+pub(crate) struct PanelCycleEngineCycleCounter {
+    pub count: std::rc::Rc<std::cell::Cell<u32>>,
+}
+
 pub(crate) struct PanelCycleEngine {
     pub(crate) panel_id: PanelId,
     /// Phase 2 Task 5: replaces `view: Weak<RefCell<emView>>`. The engine
@@ -37,6 +48,8 @@ pub(crate) struct PanelCycleEngine {
     pub(crate) scope: PanelScope,
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) first_cycle_probe: Option<PanelCycleEngineFirstCycleProbe>,
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) cycle_counter: Option<PanelCycleEngineCycleCounter>,
 }
 
 impl emEngine for PanelCycleEngine {
@@ -46,6 +59,10 @@ impl emEngine for PanelCycleEngine {
             if probe.captured_slice.get().is_none() {
                 probe.captured_slice.set(Some(ctx.time_slice_counter()));
             }
+        }
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(counter) = &self.cycle_counter {
+            counter.count.set(counter.count.get() + 1);
         }
 
         // SAFETY: `ectx.scheduler` and `pctx.scheduler` alias the same

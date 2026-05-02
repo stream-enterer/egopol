@@ -48,6 +48,25 @@ pub trait FileModelState {
     fn GetErrorText(&self) -> &str;
     fn get_memory_need(&self) -> u64;
     fn GetFileStateSignal(&self) -> SignalId;
+    /// DIVERGED: (language-forced) C++ `emFileModel::GetFileStateSignal()`
+    /// is a non-allocating accessor — the signal is allocated in the
+    /// `emFileModel` constructor, which has scheduler reach via the
+    /// `emEngine` virtual base. Rust's `emDirModel::Acquire` closure
+    /// cannot allocate (no `ectx` available at construction), forcing the
+    /// lazy `ensure_…_signal` pattern. Additionally, the dyn-safety
+    /// constraint of `dyn FileModelState` (used by `emFilePanel` for
+    /// type-erased model storage) forces this trait method to take
+    /// `&mut dyn SignalCtx` (concrete `&mut EngineCtx<'_>` at the call
+    /// site) rather than the `&mut impl SignalCtx` shape used on the
+    /// inherent `ensure_file_state_signal`. The lazy pattern itself
+    /// follows the FU-005 precedent at
+    /// `emRecFileModel::ensure_file_state_signal`
+    /// (`crates/emcore/src/emRecFileModel.rs:94`).
+    /// F019: dyn-safe lazy allocator. Mirrors the inherent
+    /// `emFileModel::ensure_file_state_signal` but takes
+    /// `&mut dyn SignalCtx` so it works through `dyn FileModelState`
+    /// (which `emFilePanel` holds for type-erased model storage).
+    fn ensure_file_state_signal_dyn(&self, ectx: &mut dyn SignalCtx) -> SignalId;
 }
 
 impl<T> FileModelState for emFileModel<T> {
@@ -65,6 +84,16 @@ impl<T> FileModelState for emFileModel<T> {
     }
     fn GetFileStateSignal(&self) -> SignalId {
         self.file_state_signal.get()
+    }
+    fn ensure_file_state_signal_dyn(&self, ectx: &mut dyn SignalCtx) -> SignalId {
+        let cur = self.file_state_signal.get();
+        if cur.is_null() {
+            let new_id = ectx.create_signal();
+            self.file_state_signal.set(new_id);
+            new_id
+        } else {
+            cur
+        }
     }
 }
 
@@ -197,6 +226,16 @@ impl<T> emFileModel<T> {
         } else {
             cur
         }
+    }
+
+    /// Test-only: forcibly set state to `Waiting`. Used by F019 proof-of-fix
+    /// test to silence the model after its engine is removed, so that any
+    /// subsequent panel cycle is unambiguously a polling regression rather
+    /// than a signal-driven response.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn force_state_waiting_for_test(&mut self) {
+        self.state = FileState::Waiting;
     }
 
     /// Synchronous fire of `file_state_signal` (F019). Lazily allocates

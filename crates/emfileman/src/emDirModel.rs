@@ -327,6 +327,15 @@ impl emDirModel {
         self.data.GetEntryCount()
     }
 
+    /// Test-only: forcibly reset file state to `Waiting`. Forwards to
+    /// `emFileModel::force_state_waiting_for_test`. Used by F019
+    /// proof-of-fix test.
+    #[cfg(test)]
+    #[doc(hidden)]
+    pub(crate) fn force_state_waiting_for_test(&mut self) {
+        self.file_model.force_state_waiting_for_test();
+    }
+
     pub fn GetEntry(&self, index: usize) -> &emDirEntry {
         self.data.GetEntry(index)
     }
@@ -408,6 +417,13 @@ impl FileModelState for emDirModel {
 
     fn GetFileStateSignal(&self) -> SignalId {
         self.file_model.GetFileStateSignal()
+    }
+
+    fn ensure_file_state_signal_dyn(
+        &self,
+        ectx: &mut dyn emcore::emEngineCtx::SignalCtx,
+    ) -> SignalId {
+        self.file_model.ensure_file_state_signal_dyn(ectx)
     }
 }
 

@@ -214,6 +214,12 @@ impl crate::emFileModel::FileModelState for emImageFileModel {
     fn GetFileStateSignal(&self) -> SignalId {
         self.file_model.GetFileStateSignal()
     }
+    fn ensure_file_state_signal_dyn(
+        &self,
+        ectx: &mut dyn crate::emEngineCtx::SignalCtx,
+    ) -> SignalId {
+        self.file_model.ensure_file_state_signal_dyn(ectx)
+    }
 }
 
 // ---------------------------------------------------------------------------
