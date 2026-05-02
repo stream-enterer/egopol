@@ -150,7 +150,7 @@ fn stocks_file_panel_save_timer_fires_drives_save() {
         "fresh panel must not be dirty"
     );
 
-    // Mutate via GetWritableRec: sets dirty, latches dirty_unobserved.
+    // Mutate via GetWritableRec: sets dirty, latches dirty_since_last_arm.
     {
         let mut sc = h.sched_ctx_for(eid);
         panel.mark_rec_dirty_for_test(&mut sc);
@@ -160,7 +160,7 @@ fn stocks_file_panel_save_timer_fires_drives_save() {
         "GetWritableRec must mark the model dirty"
     );
 
-    // Second Cycle — drains dirty_unobserved latch, arms the SaveTimer.
+    // Second Cycle — drains dirty_since_last_arm latch, arms the SaveTimer.
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
     // Force the SaveTimer to fire on the next slice by directly firing its

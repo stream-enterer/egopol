@@ -53,8 +53,10 @@ pub struct emStocksFileModel {
     /// Paired latch consumed by `dirty_since_last_touch`. Set by mutators
     /// alongside `dirty`; cleared by `touch_save_timer` after the timer is
     /// armed. Lets the panel decide whether to call `touch_save_timer(ectx)`
-    /// after `lb.Cycle` returns without re-arming the timer every Cycle.
-    dirty_unobserved: bool,
+    /// after `lb.Cycle` returns without re-arming the timer every Cycle. The
+    /// name pairs with the consumer `dirty_since_last_touch`: the latch is
+    /// "dirty since the last arming pass".
+    dirty_since_last_arm: bool,
 }
 
 impl emStocksFileModel {
@@ -74,7 +76,7 @@ impl emStocksFileModel {
             save_timer_signal: SignalId::default(),
             save_timer_id: None,
             dirty: false,
-            dirty_unobserved: false,
+            dirty_since_last_arm: false,
         }
     }
 
@@ -98,7 +100,19 @@ impl emStocksFileModel {
         self.save_timer_id = Some(tid);
     }
 
-    /// Test/internal accessor for the SaveTimer signal id.
+    /// Production accessor for the SaveTimer signal id. Returns `None` until
+    /// the owning panel has called `ensure_save_timer` on its first Cycle;
+    /// `Some(sig)` afterwards. Mirrors the `Option<SignalId>` shape used by
+    /// the panel's cached `vir_file_state_sig` so the gate at the callsite
+    /// reads identically (`.map(|s| ectx.IsSignaled(s)).unwrap_or(false)`).
+    pub fn save_timer_signal(&self) -> Option<SignalId> {
+        self.save_timer_id.map(|_| self.save_timer_signal)
+    }
+
+    /// Test/internal accessor for the raw SaveTimer signal id (returns the
+    /// `SignalId::default()` null key before `ensure_save_timer`). Production
+    /// code must use `save_timer_signal()` which wraps the pre-init state in
+    /// `None`.
     #[doc(hidden)]
     pub fn save_timer_signal_for_test(&self) -> SignalId {
         self.save_timer_signal
@@ -142,16 +156,16 @@ impl emStocksFileModel {
     pub fn GetWritableRec(&mut self, ectx: &mut impl SignalCtx) -> &mut emStocksRec {
         let rec = self.file_model.GetWritableMap(ectx);
         self.dirty = true;
-        self.dirty_unobserved = true;
+        self.dirty_since_last_arm = true;
         rec
     }
 
     /// Returns `true` if the model has been mutated since the last
     /// `touch_save_timer` and consumes the latch. The next call returns
-    /// `false` until another mutator sets `dirty_unobserved` again.
+    /// `false` until another mutator sets `dirty_since_last_arm` again.
     pub fn dirty_since_last_touch(&mut self) -> bool {
-        let observed = self.dirty_unobserved;
-        self.dirty_unobserved = false;
+        let observed = self.dirty_since_last_arm;
+        self.dirty_since_last_arm = false;
         observed
     }
 
@@ -183,19 +197,25 @@ impl emStocksFileModel {
     /// `GetWritableRec`/`touch_save_timer`.
     pub fn OnRecChanged(&mut self, ectx: &mut EngineCtx<'_>) {
         self.dirty = true;
-        self.dirty_unobserved = true;
+        self.dirty_since_last_arm = true;
         self.touch_save_timer(ectx);
     }
 
     /// Save when the SaveTimer signal fires. Mirrors C++ Cycle branch
     /// `if (IsSignaled(SaveTimer.GetSignal())) Save(true);`
-    /// (emStocksFileModel.cpp:35). Caller (the owning panel) gates this on
-    /// `IsSignaled(model.save_timer_signal)`.
+    /// (emStocksFileModel.cpp:55-57). Caller (the owning panel) gates this on
+    /// `IsSignaled(model.save_timer_signal())`.
+    ///
+    /// No re-arm happens on this path. C++ `OnRecChanged` is the sole
+    /// `SaveTimer.Start(15000)` site (emStocksFileModel.cpp:62-65); the
+    /// timer-fire branch only calls `Save(true)`. The Rust port matches:
+    /// the next mutation through `OnRecChanged`/`GetWritableRec` is the
+    /// only path that re-arms the timer.
     pub fn save_on_timer_fire(&mut self, ectx: &mut impl SignalCtx) {
         self.file_model.Save(ectx);
         // Post-Save(true) clear-point per design §"I-4 resolved".
         self.dirty = false;
-        self.dirty_unobserved = false;
+        self.dirty_since_last_arm = false;
     }
 
     /// Force save if there are unsaved changes.
@@ -203,7 +223,7 @@ impl emStocksFileModel {
         if self.dirty {
             self.file_model.Save(ectx);
             self.dirty = false;
-            self.dirty_unobserved = false;
+            self.dirty_since_last_arm = false;
         }
     }
 
@@ -216,7 +236,7 @@ impl emStocksFileModel {
     pub fn Save(&mut self, ectx: &mut impl SignalCtx) {
         self.file_model.Save(ectx);
         self.dirty = false;
-        self.dirty_unobserved = false;
+        self.dirty_since_last_arm = false;
     }
 
     /// Delegate to file_model.
@@ -250,7 +270,7 @@ impl Drop for emStocksFileModel {
             self.file_model.Save(&mut null);
             // Defensive clear; Drop is the last observer of these flags.
             self.dirty = false;
-            self.dirty_unobserved = false;
+            self.dirty_since_last_arm = false;
         }
     }
 }
@@ -285,16 +305,16 @@ mod tests {
         // ectx reach — panel arms post-lb.Cycle).
         let mut model = emStocksFileModel::new(PathBuf::from("/tmp/test.emStocks"));
         assert!(!model.dirty);
-        assert!(!model.dirty_unobserved);
+        assert!(!model.dirty_since_last_arm);
         let mut null = DropOnlySignalCtx;
         let _rec = model.GetWritableRec(&mut null);
         assert!(model.dirty);
-        assert!(model.dirty_unobserved);
+        assert!(model.dirty_since_last_arm);
     }
 
     #[test]
     fn dirty_since_last_touch_consumes_latch() {
-        // Paired latch: dirty_unobserved set on mutate, cleared by getter.
+        // Paired latch: dirty_since_last_arm set on mutate, cleared by getter.
         let mut model = emStocksFileModel::new(PathBuf::from("/tmp/test.emStocks"));
         assert!(!model.dirty_since_last_touch());
         let mut null = DropOnlySignalCtx;
@@ -314,10 +334,10 @@ mod tests {
         let mut null = DropOnlySignalCtx;
         let _rec = model.GetWritableRec(&mut null);
         assert!(model.dirty);
-        assert!(model.dirty_unobserved);
+        assert!(model.dirty_since_last_arm);
         model.Save(&mut null);
         assert!(!model.dirty);
-        assert!(!model.dirty_unobserved);
+        assert!(!model.dirty_since_last_arm);
     }
 
     #[test]
@@ -327,7 +347,7 @@ mod tests {
         let _rec = model.GetWritableRec(&mut null);
         model.SaveIfNeeded(&mut null);
         assert!(!model.dirty);
-        assert!(!model.dirty_unobserved);
+        assert!(!model.dirty_since_last_arm);
     }
 
     #[test]
@@ -348,6 +368,6 @@ mod tests {
         assert!(model.dirty);
         model.save_on_timer_fire(&mut null);
         assert!(!model.dirty);
-        assert!(!model.dirty_unobserved);
+        assert!(!model.dirty_since_last_arm);
     }
 }

@@ -31,7 +31,10 @@ fn writable_rec<'a>(model: &'a mut emStocksFileModel, ctx: &mut PanelCtx) -> &'a
         model.GetWritableRec(&mut sc)
     } else {
         #[cfg(not(test))]
-        panic!("emStocksFilePanel::Input requires scheduler reach in production");
+        panic!(
+            "emStocksFilePanel::Input: PanelCtx::as_sched_ctx() returned None — \
+             production PanelCycleEngine must thread scheduler reach (D-007)"
+        );
         // Test-only path: ChangeSignal is necessarily null (no subscriber has
         // reached GetChangeSignal with a real ctx); the dropped fire is a
         // no-op per C++ "Signal()-with-zero-subscribers".
@@ -447,7 +450,11 @@ impl PanelBehavior for emStocksFilePanel {
         // emStocksFileModel.cpp:33-38
         // `if (IsSignaled(SaveTimer.GetSignal())) Save(true);`. The model's
         // SaveTimer signal is allocated above in the first-Cycle init.
-        let save_fired = ectx.IsSignaled(self.model.save_timer_signal_for_test());
+        let save_fired = self
+            .model
+            .save_timer_signal()
+            .map(|s| ectx.IsSignaled(s))
+            .unwrap_or(false);
         if save_fired {
             self.model.save_on_timer_fire(ectx);
         }
@@ -466,7 +473,7 @@ impl PanelBehavior for emStocksFilePanel {
         // The previous shape `lb.Cycle(ectx, model.GetWritableRec(ectx), config)`
         // takes two `&mut ectx` borrows simultaneously. The split-borrow shape
         // below sequences them: first call the rec-mutation half of the split
-        // `GetWritableRec` (which only sets `dirty`/`dirty_unobserved` and
+        // `GetWritableRec` (which only sets `dirty`/`dirty_since_last_arm` and
         // returns `&mut emStocksRec` — no scheduler touch), drive `lb.Cycle`,
         // then after lb.Cycle returns advance the SaveTimer via the
         // `touch_save_timer(ectx)` half, gated on `dirty_since_last_touch()`.
