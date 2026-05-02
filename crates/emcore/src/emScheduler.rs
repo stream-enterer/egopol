@@ -860,6 +860,30 @@ impl EngineScheduler {
         pce.first_cycle_probe =
             Some(crate::emPanelCycleEngine::PanelCycleEngineFirstCycleProbe { captured_slice });
     }
+
+    /// F019 proof-of-fix: attach a cycle counter to a registered
+    /// `PanelCycleEngine`. The counter increments on every `Cycle`
+    /// dispatch so tests can assert the panel re-cycles only on
+    /// state-change events, not on every scheduler slice.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn attach_cycle_counter(
+        &mut self,
+        eid: super::emEngine::EngineId,
+        count: std::rc::Rc<std::cell::Cell<u32>>,
+    ) {
+        let Some(eng) = self.inner.engines.get_mut(eid) else {
+            return;
+        };
+        let Some(behavior) = eng.behavior.as_mut() else {
+            return;
+        };
+        let Some(pce) = (behavior.as_mut() as &mut dyn std::any::Any)
+            .downcast_mut::<crate::emPanelCycleEngine::PanelCycleEngine>()
+        else {
+            panic!("attach_cycle_counter: engine {eid:?} is not a PanelCycleEngine");
+        };
+        pce.cycle_counter = Some(crate::emPanelCycleEngine::PanelCycleEngineCycleCounter { count });
+    }
 }
 
 impl Drop for EngineScheduler {

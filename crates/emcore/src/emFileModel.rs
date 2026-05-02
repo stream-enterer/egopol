@@ -1,8 +1,11 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 use std::time::SystemTime;
 
+use slotmap::Key as _;
+
+use crate::emEngineCtx::SignalCtx;
 use crate::emSignal::SignalId;
 
 /// Loading/saving state for a file-backed model.
@@ -45,6 +48,25 @@ pub trait FileModelState {
     fn GetErrorText(&self) -> &str;
     fn get_memory_need(&self) -> u64;
     fn GetFileStateSignal(&self) -> SignalId;
+    /// DIVERGED: (language-forced) C++ `emFileModel::GetFileStateSignal()`
+    /// is a non-allocating accessor — the signal is allocated in the
+    /// `emFileModel` constructor, which has scheduler reach via the
+    /// `emEngine` virtual base. Rust's `emDirModel::Acquire` closure
+    /// cannot allocate (no `ectx` available at construction), forcing the
+    /// lazy `ensure_…_signal` pattern. Additionally, the dyn-safety
+    /// constraint of `dyn FileModelState` (used by `emFilePanel` for
+    /// type-erased model storage) forces this trait method to take
+    /// `&mut dyn SignalCtx` (concrete `&mut EngineCtx<'_>` at the call
+    /// site) rather than the `&mut impl SignalCtx` shape used on the
+    /// inherent `ensure_file_state_signal`. The lazy pattern itself
+    /// follows the FU-005 precedent at
+    /// `emRecFileModel::ensure_file_state_signal`
+    /// (`crates/emcore/src/emRecFileModel.rs:94`).
+    /// F019: dyn-safe lazy allocator. Mirrors the inherent
+    /// `emFileModel::ensure_file_state_signal` but takes
+    /// `&mut dyn SignalCtx` so it works through `dyn FileModelState`
+    /// (which `emFilePanel` holds for type-erased model storage).
+    fn ensure_file_state_signal_dyn(&self, ectx: &mut dyn SignalCtx) -> SignalId;
 }
 
 impl<T> FileModelState for emFileModel<T> {
@@ -61,7 +83,17 @@ impl<T> FileModelState for emFileModel<T> {
         self.memory_need
     }
     fn GetFileStateSignal(&self) -> SignalId {
-        self.file_state_signal
+        self.file_state_signal.get()
+    }
+    fn ensure_file_state_signal_dyn(&self, ectx: &mut dyn SignalCtx) -> SignalId {
+        let cur = self.file_state_signal.get();
+        if cur.is_null() {
+            let new_id = ectx.create_signal();
+            self.file_state_signal.set(new_id);
+            new_id
+        } else {
+            cur
+        }
     }
 }
 
@@ -114,7 +146,12 @@ pub struct emFileModel<T> {
     path: PathBuf,
     state: FileState,
     error_text: String,
-    file_state_signal: SignalId,
+    /// Port of inherited C++ `emFileModel::FileStateSignal` (F019).
+    /// Lazy-allocated on first `ensure_file_state_signal(ectx)` call;
+    /// null until then. Mirrors `emRecFileModel::file_state_signal`
+    /// (FU-005) for `emFileModel<T>` callers without scheduler reach
+    /// at construction (notably `emDirModel::Acquire`).
+    file_state_signal: Cell<SignalId>,
     memory_limit: usize,
     memory_need: u64,
     file_progress: f64,
@@ -128,13 +165,13 @@ pub struct emFileModel<T> {
 }
 
 impl<T> emFileModel<T> {
-    pub fn new(path: PathBuf, file_state_signal: SignalId) -> Self {
+    pub fn new(path: PathBuf) -> Self {
         Self {
             data: None,
             path,
             state: FileState::Waiting,
             error_text: String::new(),
-            file_state_signal,
+            file_state_signal: Cell::new(SignalId::null()),
             memory_limit: usize::MAX,
             memory_need: 0,
             file_progress: 0.0,
@@ -164,8 +201,50 @@ impl<T> emFileModel<T> {
         &self.path
     }
 
+    /// Port of C++ `emFileModel::GetFileStateSignal()` — non-allocating
+    /// read of the lazily-allocated signal id (F019). Returns null until
+    /// `ensure_file_state_signal(ectx)` has been called by some
+    /// subscriber. Mirrors the FU-005 `emRecFileModel::GetFileStateSignal`
+    /// trait-level shape (non-allocating reader; allocation done via
+    /// `ensure_file_state_signal`).
     pub fn GetFileStateSignal(&self) -> SignalId {
-        self.file_state_signal
+        self.file_state_signal.get()
+    }
+
+    /// Lazy allocator for `file_state_signal` (F019). Allocates on first
+    /// call; returns the live id thereafter. Subscribers call this at
+    /// first-Cycle subscribe time so the connect wires into a real id
+    /// before any fires can occur. Mirrors
+    /// `emRecFileModel::ensure_file_state_signal` (FU-005) and
+    /// `emFilePanel::ensure_vir_file_state_signal` (B-004).
+    pub fn ensure_file_state_signal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        let cur = self.file_state_signal.get();
+        if cur.is_null() {
+            let new_id = ectx.create_signal();
+            self.file_state_signal.set(new_id);
+            new_id
+        } else {
+            cur
+        }
+    }
+
+    /// Test-only: forcibly set state to `Waiting`. Used by F019 proof-of-fix
+    /// test to silence the model after its engine is removed, so that any
+    /// subsequent panel cycle is unambiguously a polling regression rather
+    /// than a signal-driven response.
+    #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
+    pub fn force_state_waiting_for_test(&mut self) {
+        self.state = FileState::Waiting;
+    }
+
+    /// Synchronous fire of `file_state_signal` (F019). Lazily allocates
+    /// via `ensure_file_state_signal` so subscribers wired up after a
+    /// previous null-read connect see the fire on their next Cycle.
+    /// Mirrors `emRecFileModel::signal_file_state` (FU-005).
+    pub fn signal_file_state(&self, ectx: &mut impl SignalCtx) {
+        let sig = self.ensure_file_state_signal(ectx);
+        ectx.fire(sig);
     }
 
     pub fn set_memory_limit(&mut self, limit: usize) {
@@ -522,7 +601,11 @@ impl<T> emFileModel<T> {
             state_changed = true;
         }
         if state_changed {
-            ctx.fire(self.file_state_signal);
+            // F019: model self-allocates so any subscriber that connected
+            // on a prior Cycle (when sig was null and connect was skipped)
+            // will reconnect on its next Cycle (panel's diff-check at
+            // emFilePanel.rs:532 handles the null→non-null transition).
+            self.signal_file_state(ctx);
         }
 
         matches!(self.state, FileState::Loading { .. })
@@ -747,11 +830,43 @@ mod tests {
     }
 
     fn make_model() -> emFileModel<()> {
-        emFileModel::new(PathBuf::from("/tmp/test.dat"), SignalId::default())
+        emFileModel::new(PathBuf::from("/tmp/test.dat"))
     }
 
     fn make_client(limit: u64, priority: f64, annoying: bool) -> Rc<RefCell<dyn FileModelClient>> {
         Rc::new(RefCell::new(MockClient::new(limit, priority, annoying)))
+    }
+
+    #[test]
+    fn file_state_signal_is_null_until_first_ensure_with_ctx() {
+        use crate::test_view_harness::TestViewHarness;
+        let model: emFileModel<String> = emFileModel::new(PathBuf::from("x"));
+        assert!(
+            model.GetFileStateSignal().is_null(),
+            "fresh emFileModel must hold null file_state_signal until ensure_file_state_signal(ectx) is called"
+        );
+        let mut h = TestViewHarness::new();
+        let id1 = {
+            let mut sc = h.sched_ctx();
+            model.ensure_file_state_signal(&mut sc)
+        };
+        assert!(
+            !id1.is_null(),
+            "first ensure_file_state_signal(ectx) must allocate a real id"
+        );
+        let id2 = {
+            let mut sc = h.sched_ctx();
+            model.ensure_file_state_signal(&mut sc)
+        };
+        assert_eq!(
+            id1, id2,
+            "ensure_file_state_signal(ectx) must be idempotent — second call returns the same id"
+        );
+        let id3 = model.GetFileStateSignal();
+        assert_eq!(
+            id1, id3,
+            "after allocation, the non-allocating read returns the same id"
+        );
     }
 
     #[test]
@@ -942,10 +1057,8 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let mut ps_model = PriSchedModel::new(&mut sched);
 
-        let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(emFileModel::new(
-            PathBuf::from("/dev/null"),
-            SignalId::default(),
-        )));
+        let model: Rc<RefCell<emFileModel<String>>> =
+            Rc::new(RefCell::new(emFileModel::new(PathBuf::from("/dev/null"))));
 
         // Create a GotAccess callback that drives loading
         let m = Rc::clone(&model);

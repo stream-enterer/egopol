@@ -199,6 +199,50 @@ impl emFilePanel {
         self.subscribed_file_state_signal
     }
 
+    /// RUST_ONLY: (language-forced-utility) C++ `emFilePanel::Cycle` runs for both
+    /// `emFilePanel` and derived classes (e.g., `emDirPanel`) via virtual
+    /// dispatch, so B-015's connect block executes once at the appropriate
+    /// site. Rust `emDirPanel` composes `emFilePanel` as a field rather
+    /// than implementing `PanelBehavior` directly, so
+    /// `<emFilePanel as PanelBehavior>::Cycle` never runs for derived
+    /// panels. Extracting B-015's connect block into an inherent helper
+    /// that derived panels' `Cycle` implementations explicitly call is the
+    /// language-forced equivalent of C++'s virtual dispatch — no observable
+    /// behavior is added; the helper is the same connect code, exposed at
+    /// a callable boundary because the trait-impl boundary cannot stand
+    /// in for the C++ inheritance boundary.
+    ///
+    /// B-015 Cycle-time FileStateSignal connect/disconnect, exposed as
+    /// an inherent helper so derived panels (emDirPanel, emFileLinkPanel,
+    /// emImageFileImageFilePanel) can run it from their B-016 prefix.
+    ///
+    /// `<emFilePanel as PanelBehavior>::Cycle` runs this internally; it is
+    /// not invoked when emFilePanel is composed as a sub-component, so
+    /// derived panels must call this themselves to wire the model's
+    /// FileStateSignal wake-up. F019: uses the lazy-allocating
+    /// `ensure_file_state_signal_dyn` so the panel's first Cycle promotes
+    /// the model's signal id from null to real, allowing the connect to
+    /// land synchronously rather than waiting for the model's engine to
+    /// fire (which would not wake an unsubscribed panel).
+    #[doc(hidden)]
+    pub fn connect_file_state_signal(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>) {
+        let eid = ectx.id();
+        let target_sig = self
+            .model
+            .as_ref()
+            .map(|m| m.borrow().ensure_file_state_signal_dyn(ectx))
+            .unwrap_or_else(SignalId::null);
+        if target_sig != self.subscribed_file_state_signal {
+            if !self.subscribed_file_state_signal.is_null() {
+                ectx.disconnect(self.subscribed_file_state_signal, eid);
+            }
+            if !target_sig.is_null() {
+                ectx.connect(target_sig, eid);
+            }
+            self.subscribed_file_state_signal = target_sig;
+        }
+    }
+
     fn compute_vir_file_state(&self) -> VirtualFileState {
         if let Some(ref msg) = self.custom_error {
             return VirtualFileState::CustomError(msg.clone());
@@ -523,21 +567,7 @@ impl PanelBehavior for emFilePanel {
         // no engine context. Subscribe is therefore deferred to Cycle, with
         // model-swap detection on each invocation. Matches the precedent set
         // by `emImageFilePanel` B-007 row -139 for the same reason.
-        let eid = ectx.id();
-        let target_sig = self
-            .model
-            .as_ref()
-            .map(|m| m.borrow().GetFileStateSignal())
-            .unwrap_or_else(SignalId::null);
-        if target_sig != self.subscribed_file_state_signal {
-            if !self.subscribed_file_state_signal.is_null() {
-                ectx.disconnect(self.subscribed_file_state_signal, eid);
-            }
-            if !target_sig.is_null() {
-                ectx.connect(target_sig, eid);
-            }
-            self.subscribed_file_state_signal = target_sig;
-        }
+        self.connect_file_state_signal(ectx);
 
         // B-004: fire VirFileStateSignal when VirtualFileState changes, mirroring
         // C++ emFilePanel::Cycle Signal(VirFileStateSignal) at emFilePanel.cpp:158,179.
@@ -628,14 +658,10 @@ pub fn map_vir_state(state: &VirtualFileState) -> FileLoadStatus {
 mod tests {
     use super::*;
     use crate::emFileModel::emFileModel;
-    use crate::emSignal::SignalId;
     use std::path::PathBuf;
 
     fn make_panel_with_model() -> (emFilePanel, Rc<RefCell<emFileModel<String>>>) {
-        let model = Rc::new(RefCell::new(emFileModel::new(
-            PathBuf::from("/tmp/test"),
-            SignalId::default(),
-        )));
+        let model = Rc::new(RefCell::new(emFileModel::new(PathBuf::from("/tmp/test"))));
         let mut panel = emFilePanel::new();
         panel.SetFileModel(Some(model.clone() as Rc<RefCell<dyn FileModelState>>));
         (panel, model)
@@ -689,10 +715,9 @@ mod tests {
         assert!(panel.GetVirFileState().is_good());
 
         // Reset to waiting by creating a new model
-        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(
-            PathBuf::from("/tmp/test2"),
-            SignalId::default(),
-        )));
+        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(PathBuf::from(
+            "/tmp/test2",
+        ))));
         panel.SetFileModel(Some(model2 as Rc<RefCell<dyn FileModelState>>));
         assert!(!panel.GetVirFileState().is_good());
     }
@@ -757,10 +782,9 @@ mod tests {
         assert_eq!(panel.GetVirFileState(), VirtualFileState::TooCostly);
 
         // LoadError — need a fresh model since fail_load works from Waiting
-        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(
-            PathBuf::from("/tmp/test2"),
-            SignalId::default(),
-        )));
+        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(PathBuf::from(
+            "/tmp/test2",
+        ))));
         panel.SetFileModel(Some(model2.clone() as Rc<RefCell<dyn FileModelState>>));
         model2.borrow_mut().fail_load("e".to_string());
         panel.refresh_vir_file_state();
@@ -780,10 +804,9 @@ mod tests {
         assert_eq!(panel.GetCanvasColor(), error_color);
 
         // SaveError — need fresh model
-        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(
-            PathBuf::from("/tmp/test2"),
-            SignalId::default(),
-        )));
+        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(PathBuf::from(
+            "/tmp/test2",
+        ))));
         panel.SetFileModel(Some(model2.clone() as Rc<RefCell<dyn FileModelState>>));
         model2.borrow_mut().complete_load("data".to_string());
         model2.borrow_mut().SetUnsavedState();
@@ -923,10 +946,9 @@ mod tests {
         assert_eq!(panel.IsContentReady(), (true, false));
 
         // Reset to test error state
-        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(
-            PathBuf::from("/tmp/test2"),
-            SignalId::default(),
-        )));
+        let model2 = Rc::new(RefCell::new(emFileModel::<String>::new(PathBuf::from(
+            "/tmp/test2",
+        ))));
         panel.SetFileModel(Some(model2.clone() as Rc<RefCell<dyn FileModelState>>));
         model2.borrow_mut().fail_load("err".to_string());
         panel.refresh_vir_file_state();

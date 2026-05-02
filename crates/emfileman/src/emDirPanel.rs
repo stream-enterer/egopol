@@ -349,6 +349,16 @@ impl PanelBehavior for emDirPanel {
             self.content_complete = false;
         }
 
+        // B-015 (F019): subscribe the panel to the model's FileStateSignal.
+        // <emFilePanel as PanelBehavior>::Cycle (which embeds B-015) is not
+        // invoked for emDirPanel — emFilePanel is held as a field, not a
+        // base behavior — so the subscribe must run explicitly here as part
+        // of the B-016 prefix (mirrors the explicit cycle_inner suffix
+        // below). Without this, the model's FileStateSignal fires would
+        // have no subscribed panel and the panel would never re-cycle
+        // after its initial wake.
+        self.file_panel.connect_file_state_signal(ectx);
+
         // D-006 first-Cycle init: lazy-allocate ChangeSignal and connect.
         // Mirrors C++ emDirPanel ctor `AddWakeUpSignal(...)` (rows 37-38).
         if !self.subscribed_init {
@@ -382,29 +392,26 @@ impl PanelBehavior for emDirPanel {
         // Observe the model. On Loaded, materialize children if not yet
         // built (child_count == 0 doubles as the "haven't built children
         // yet" predicate). On error, surface the message via file_panel.
-        // While Loading or Waiting, return true to stay awake — the
-        // panel's signal connection to the model's FileStateSignal is
-        // handled by file_panel.SetFileModel; returning true defends
-        // against the case where the connection is not auto-wired.
+        // While Loading or Waiting, return false — the panel is woken on
+        // FileStateSignal fires via the D-006 subscribe path established
+        // by emFilePanel::Cycle (B-015). The earlier stay_awake=true
+        // workaround (F017 compensation for the never-fired signal) is
+        // retired now that emFileModel<T> allocates its FileStateSignal
+        // lazily (F019).
         let observed_state = self
             .dir_model
             .as_ref()
             .map(|dm| dm.borrow().get_file_state());
-        let stay_awake = match &observed_state {
-            Some(FileState::Loaded) => {
-                if self.child_count == 0 {
-                    self.file_panel.clear_custom_error();
-                    self.update_children(ctx);
-                }
-                false
+        match &observed_state {
+            Some(FileState::Loaded) if self.child_count == 0 => {
+                self.file_panel.clear_custom_error();
+                self.update_children(ctx);
             }
             Some(FileState::LoadError(e)) => {
                 self.file_panel.set_custom_error(e);
-                false
             }
-            Some(FileState::Loading { .. }) | Some(FileState::Waiting) => true,
-            _ => false,
-        };
+            _ => {}
+        }
 
         // Same-Cycle drain: set_custom_error / clear_custom_error above flip
         // pending_vir_state_fire; drain so VirFileStateSignal observers see
@@ -418,7 +425,7 @@ impl PanelBehavior for emDirPanel {
         if changed && !self.file_panel.GetVirFileStateSignal().is_null() {
             ectx.fire(self.file_panel.GetVirFileStateSignal());
         }
-        changed || stay_awake
+        changed
     }
 
     fn Input(
@@ -841,9 +848,13 @@ mod tests {
     /// Verifies that the PanelCycleEngine for a child created inside a notice
     /// handler fires within the same DoTimeSlice — the full scheduling roundtrip.
     ///
-    /// Observable: emDirPanel::Cycle returns stay_awake=true while loading, so
-    /// the engine is re-queued; sched.has_awake_engines() must be true after
-    /// DoTimeSlice if Cycle ran.
+    /// Observable: after wake_up_panel + DoTimeSlice, the panel's Cycle has
+    /// dispatched, registered the dir_model engine, and that model engine is
+    /// awake driving the load — so sched.has_awake_engines() is true.
+    /// (Pre-F019 the panel itself stayed awake via stay_awake=true polling;
+    /// post-F019 the panel cycles only on FileStateSignal fires, but the
+    /// model engine quiescence path keeps at least one engine awake during
+    /// loading.)
     ///
     /// Failure (after notice_ctx_child_wake_up_panel_queues_engine passes) means
     /// the engine is woken but the scheduler never dispatches it:
@@ -853,6 +864,7 @@ mod tests {
         use emcore::emEngineCtx::PanelCtx;
         use emcore::emPanelTree::PanelTree;
         use emcore::emScheduler::EngineScheduler;
+        use std::cell::{Cell, RefCell};
         use std::collections::HashMap;
         use std::rc::Rc;
 
@@ -866,14 +878,26 @@ mod tests {
 
         // Simulate notice-path: create emDirPanel child + wake, exactly as
         // handle_notice_one → update_content_panel does.
-        {
+        let child_id = {
             let mut ctx = PanelCtx::with_scheduler(&mut tree, parent, 1.0, &mut sched);
-            let child_id = ctx.create_child_with(
+            let cid = ctx.create_child_with(
                 "content",
                 Box::new(emDirPanel::new(Rc::clone(&emctx), "/tmp".to_string())),
             );
-            ctx.wake_up_panel(child_id);
-        }
+            ctx.wake_up_panel(cid);
+            cid
+        };
+
+        // F019 plan step 2.4: attach a cycle counter to the child's
+        // PanelCycleEngine BEFORE the first slice, so we capture every
+        // dispatch from the initial wake onward. Used below to assert
+        // the panel does not re-cycle once FileStateSignal fires are
+        // silenced — the polling-regression discriminator.
+        let child_eid = tree
+            .panel_engine_id_pub(child_id)
+            .expect("emDirPanel child must have a registered PanelCycleEngine after wake_up_panel");
+        let cycle_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        sched.attach_cycle_counter(child_eid, Rc::clone(&cycle_count));
 
         // Wrap tree in headless window so Toplevel(wid) dispatch finds it.
         let (wid, win) =
@@ -884,10 +908,10 @@ mod tests {
         let mut fw = Vec::new();
         let mut pending_inputs = Vec::new();
         let mut input_state = emcore::emInputState::emInputState::new();
-        let cb = std::cell::RefCell::new(None::<Box<dyn emcore::emClipboard::emClipboard>>);
-        let pa = Rc::new(std::cell::RefCell::new(Vec::<
-            emcore::emGUIFramework::DeferredAction,
-        >::new()));
+        let cb = RefCell::new(None::<Box<dyn emcore::emClipboard::emClipboard>>);
+        let pa = Rc::new(RefCell::new(
+            Vec::<emcore::emGUIFramework::DeferredAction>::new(),
+        ));
 
         // Drain any engines already awake before our panel (root/parent engines
         // woken by INIT_NOTICE_FLAGS) so they don't muddy the has_awake signal.
@@ -901,23 +925,63 @@ mod tests {
             &pa,
         );
 
-        // emDirPanel::Cycle returns stay_awake=true while loading ("/tmp").
-        // If it ran, the engine is re-queued and has_awake_engines() is true.
-        // If it never ran (window scope mismatch / behavior taken), it was
-        // dequeued and NOT re-queued → has_awake_engines() is false.
+        // After Cycle runs, it registers + wakes the dir_model engine
+        // (driving the load); has_awake_engines() reflects that. If the
+        // panel Cycle never ran (window scope mismatch / behavior
+        // taken), no model engine got registered and has_awake_engines()
+        // is false.
         assert!(
             sched.has_awake_engines(),
-            "emDirPanel PanelCycleEngine must fire and re-queue itself (stay_awake=true \
-             while loading /tmp); has_awake_engines()=false means Cycle never ran — \
+            "emDirPanel PanelCycleEngine must dispatch + register the dir_model engine; \
+             has_awake_engines()=false means Cycle never ran — \
              check PanelScope::Toplevel wid={:?} window lookup or take_behavior returning None",
             wid
         );
+
+        // F019 plan step 2.4 strengthening: snapshot the cycle counter
+        // after the initial wake's dispatch, then silence the model
+        // (release its engine + force state back to Waiting) and run a
+        // generous slice budget. With FileStateSignal fires impossible
+        // (no model engine), the post-fix panel must NOT re-cycle. A
+        // polling regression (`Loading|Waiting => stay_awake=true` in
+        // emDirPanel::Cycle) would re-queue the panel every slice while
+        // state is Waiting, growing the counter by ~SLICE_BUDGET. This
+        // belt-and-suspenders alongside the proof-of-fix test
+        // `loading_dir_wakes_panel_via_filestatesignal_not_polling`.
+        let after_initial = cycle_count.get();
+        let dm = emDirModel::Acquire(&emctx, "/tmp");
+        emDirModel::release_engine(&dm, &mut sched);
+        dm.borrow_mut().force_state_waiting_for_test();
+        const SLICE_BUDGET: u32 = 10;
+        for _ in 0..SLICE_BUDGET {
+            sched.DoTimeSlice(
+                &mut windows,
+                &emctx,
+                &mut fw,
+                &mut pending_inputs,
+                &mut input_state,
+                &cb,
+                &pa,
+            );
+        }
+        let after_silenced = cycle_count.get();
+        let delta = after_silenced - after_initial;
+
         // Cleanup: reclaim tree from window and remove all panels.
         let mut win = windows.remove(&wid).unwrap();
         let mut reclaimed = win.take_tree();
         reclaimed.remove(root, Some(&mut sched));
-        let dm = emDirModel::Acquire(&emctx, "/tmp");
-        emDirModel::release_engine(&dm, &mut sched);
+
+        assert_eq!(
+            delta, 0,
+            "F019 regression: emDirPanel cycled {delta} additional times \
+             across {SLICE_BUDGET} silenced slices (model engine released + \
+             state forced to Waiting, so no FileStateSignal fire is possible). \
+             Expected zero — any nonzero delta means the panel re-cycled \
+             without a signal event, which is the exact stay_awake-while-loading \
+             polling we retired. after_initial={after_initial} \
+             after_silenced={after_silenced}",
+        );
     }
 
     /// Reproduces the full production path:
@@ -1037,8 +1101,8 @@ mod tests {
         ));
 
         // Run several slices: UpdateEngineClass fires → delivers notice →
-        // NoticeSpawner creates emDirPanel → wake_up_panel.
-        // Then PanelCycleEngine(Medium) should fire (Cycle returns stay_awake=true).
+        // NoticeSpawner creates emDirPanel → wake_up_panel. Then Cycle
+        // dispatches, registers + wakes the dir_model engine.
         for _ in 0..5 {
             sched.DoTimeSlice(
                 &mut windows,
@@ -1050,10 +1114,11 @@ mod tests {
                 &pa,
             );
             if sched.has_awake_engines() {
-                // Something is still running — check if it's the emDirPanel engine
-                // (stay_awake=true means Cycle ran and is loading /tmp).
-                // We can't distinguish which engine is awake, but if after 5 slices
-                // has_awake_engines() is true, the loading is in progress.
+                // Something is still running — the model engine driving
+                // the load satisfies has_awake_engines(). We can't
+                // distinguish which engine is awake, but a true here
+                // means at minimum the panel Cycle dispatched and
+                // registered the model engine.
                 break;
             }
         }
@@ -1068,15 +1133,18 @@ mod tests {
         // We check by querying the child panel's VirtualFileState via file_panel.
         // But we can't directly access behavior without pub(crate) methods.
         // Use the observable proxy: has_awake_engines after all slices.
-        // If emDirPanel Cycle ran (stay_awake=true), it's in the awake queue.
+        // If emDirPanel Cycle ran, the dir_model engine got registered
+        // and woken; with /tmp not yet finished loading by slice 5,
+        // some engine remains awake.
         assert!(
             sched.has_awake_engines(),
             "After {n} DoTimeSlice calls through UpdateEngineClass → notice → create_child_with \
-             + wake_up_panel, emDirPanel PanelCycleEngine must have fired (stay_awake=true). \
+             + wake_up_panel, emDirPanel PanelCycleEngine must have dispatched (and the \
+             dir_model engine it registers must still be loading). \
              has_awake_engines()=false means either:\n\
              (a) wake_up_panel found engine_id=None — engine not registered during notice\n\
-             (b) PanelCycleEngine fired but Cycle returned false — unexpected\n\
-             (c) PanelCycleEngine never dispatched despite being in queue (scope/window mismatch)\n\
+             (b) PanelCycleEngine never dispatched despite being in queue (scope/window mismatch)\n\
+             (c) load completed in fewer than {n} slices and all engines quiesced\n\
              This is the exact production failure mode: UpdateEngineClass(High) blocks \
              PanelCycleEngine(Medium) from running.",
             n = 5,
@@ -1865,6 +1933,138 @@ mod tests {
             corner,
             (dc_r, dc_g, dc_b, dc_a),
             "Waiting state must NOT Clear with DirContentColor (default arm delegates to paint_status)",
+        );
+    }
+
+    /// F019 proof-of-fix: emDirPanel.Cycle invocations are bounded by
+    /// state-change events (signal fires), not by scheduler slice count.
+    ///
+    /// Construction strategy: build the panel viewing /tmp, run one
+    /// DoTimeSlice so the panel registers the model engine, then
+    /// FORCIBLY remove that engine and reset the model state to
+    /// Waiting. With the model engine gone, the model cannot transition
+    /// state and cannot fire FileStateSignal. The only way the panel
+    /// can be re-cycled across subsequent slices is via the
+    /// `stay_awake`-while-loading polling we just retired.
+    ///
+    /// Pre-fix (F017): `Loading|Waiting => stay_awake=true` re-queued
+    /// the panel every slice — cycle_count would grow ~1 per slice.
+    /// Post-fix (F019): no signal fires → panel never re-wakes → after
+    /// the initial wake's cycle, additional slices add zero.
+    ///
+    /// Threshold: post-fix cycle_count must be `<= initial_cycles`
+    /// (the cycles run during the initial wake before counter
+    /// snapshot); pre-fix would yield `initial + SLICE_BUDGET`.
+    #[test]
+    fn loading_dir_wakes_panel_via_filestatesignal_not_polling() {
+        use emcore::emEngineCtx::PanelCtx;
+        use emcore::emPanelTree::PanelTree;
+        use emcore::emScheduler::EngineScheduler;
+        use std::cell::{Cell, RefCell};
+        use std::collections::HashMap;
+        use std::rc::Rc;
+
+        let path = "/tmp".to_string();
+        let emctx = emcore::emContext::emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root", true);
+        let mut sched = EngineScheduler::new();
+        tree.register_engine_for_public(root, Some(&mut sched));
+        let parent = tree.create_child(root, "parent", Some(&mut sched));
+
+        // Create emDirPanel child + wake it. Mirrors
+        // notice_ctx_child_engine_fires_in_same_slice fixture shape.
+        let child_id = {
+            let mut ctx = PanelCtx::with_scheduler(&mut tree, parent, 1.0, &mut sched);
+            let cid = ctx.create_child_with(
+                "content",
+                Box::new(emDirPanel::new(Rc::clone(&emctx), path.clone())),
+            );
+            ctx.wake_up_panel(cid);
+            cid
+        };
+
+        let child_eid = tree
+            .panel_engine_id_pub(child_id)
+            .expect("emDirPanel child must have a registered PanelCycleEngine after wake_up_panel");
+        let cycle_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        sched.attach_cycle_counter(child_eid, Rc::clone(&cycle_count));
+
+        let (wid, win) =
+            emcore::test_view_harness::headless_emwindow_with_tree(&emctx, &mut sched, tree);
+        let mut windows = HashMap::new();
+        windows.insert(wid, win);
+
+        let mut fw = Vec::new();
+        let mut pending_inputs = Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let cb = RefCell::new(None::<Box<dyn emcore::emClipboard::emClipboard>>);
+        let pa = Rc::new(RefCell::new(
+            Vec::<emcore::emGUIFramework::DeferredAction>::new(),
+        ));
+
+        // Slice 1: initial wake — panel.Cycle creates dir_model + registers
+        // its engine + connects FileStateSignal. Cycle counter records
+        // every dispatch in this slice (could be multiple due to model
+        // engine fires propagating back).
+        sched.DoTimeSlice(
+            &mut windows,
+            &emctx,
+            &mut fw,
+            &mut pending_inputs,
+            &mut input_state,
+            &cb,
+            &pa,
+        );
+        let after_initial = cycle_count.get();
+
+        // Now silence the model: remove its engine and reset its state
+        // to Waiting. With no model engine, the model cannot fire
+        // FileStateSignal. The ONLY mechanism that could re-cycle the
+        // panel across subsequent slices is the retired
+        // stay_awake-while-loading polling.
+        let dm = emDirModel::Acquire(&emctx, &path);
+        emDirModel::release_engine(&dm, &mut sched);
+        // Force state back to Waiting so polling-regression code path
+        // (Loading|Waiting => stay_awake=true) would activate.
+        dm.borrow_mut().force_state_waiting_for_test();
+
+        // Run a generous slice budget. Without model engine fires, the
+        // post-fix panel must NOT cycle again. A polling regression
+        // would re-cycle the panel every slice — count would grow by
+        // SLICE_BUDGET.
+        const SLICE_BUDGET: u32 = 10;
+        for _ in 0..SLICE_BUDGET {
+            sched.DoTimeSlice(
+                &mut windows,
+                &emctx,
+                &mut fw,
+                &mut pending_inputs,
+                &mut input_state,
+                &cb,
+                &pa,
+            );
+        }
+
+        let after_silenced = cycle_count.get();
+        let delta = after_silenced - after_initial;
+
+        // Cleanup before assertion.
+        let mut win = windows.remove(&wid).unwrap();
+        let mut tree = win.take_tree();
+        tree.remove(root, Some(&mut sched));
+
+        // Assertion: zero additional cycles across SLICE_BUDGET silenced
+        // slices. Polling regression would yield delta >= SLICE_BUDGET
+        // (one re-cycle per slice while state is Waiting).
+        assert_eq!(
+            delta, 0,
+            "F019 regression: emDirPanel cycled {delta} additional times \
+             across {SLICE_BUDGET} silenced slices (no model fires \
+             possible). Expected zero — any nonzero delta means the \
+             panel re-cycled without a signal event, which is the \
+             exact stay_awake-while-loading polling we retired. \
+             after_initial={after_initial} after_silenced={after_silenced}",
         );
     }
 }

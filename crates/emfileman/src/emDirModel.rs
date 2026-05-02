@@ -279,7 +279,7 @@ impl emEngine for emDirModelEngine {
 impl emDirModel {
     pub fn Acquire(ctx: &Rc<emcore::emContext::emContext>, name: &str) -> Rc<RefCell<Self>> {
         ctx.acquire::<Self>(name, || Self {
-            file_model: emFileModel::new(PathBuf::from(name), SignalId::default()),
+            file_model: emFileModel::new(PathBuf::from(name)),
             data: emDirModelData::new(PathBuf::from(name)),
             path: name.to_string(),
             engine_id: None,
@@ -325,6 +325,15 @@ impl emDirModel {
 
     pub fn GetEntryCount(&self) -> usize {
         self.data.GetEntryCount()
+    }
+
+    /// Test-only: forcibly reset file state to `Waiting`. Forwards to
+    /// `emFileModel::force_state_waiting_for_test`. Used by F019
+    /// proof-of-fix test.
+    #[cfg(test)]
+    #[doc(hidden)]
+    pub(crate) fn force_state_waiting_for_test(&mut self) {
+        self.file_model.force_state_waiting_for_test();
     }
 
     pub fn GetEntry(&self, index: usize) -> &emDirEntry {
@@ -408,6 +417,13 @@ impl FileModelState for emDirModel {
 
     fn GetFileStateSignal(&self) -> SignalId {
         self.file_model.GetFileStateSignal()
+    }
+
+    fn ensure_file_state_signal_dyn(
+        &self,
+        ectx: &mut dyn emcore::emEngineCtx::SignalCtx,
+    ) -> SignalId {
+        self.file_model.ensure_file_state_signal_dyn(ectx)
     }
 }
 
@@ -720,6 +736,10 @@ mod tests {
         if let Some(eid) = eid {
             sched.remove_engine(eid);
         }
+        // F019: emFileModel::Cycle now lazily allocates and fires
+        // file_state_signal on state change. With no subscribers connected
+        // in this test, the fire goes pending; drain it before drop.
+        sched.abort_all_pending();
 
         assert!(
             primed_ok,

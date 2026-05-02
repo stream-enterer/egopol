@@ -646,6 +646,8 @@ impl PanelTree {
             scope,
             #[cfg(any(test, feature = "test-support"))]
             first_cycle_probe: None,
+            #[cfg(any(test, feature = "test-support"))]
+            cycle_counter: None,
         };
         let eid = sched.register_engine(Box::new(adapter), Priority::Medium, scope);
         self.panels[id].engine_id = Some(eid);

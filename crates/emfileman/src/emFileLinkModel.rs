@@ -280,6 +280,13 @@ impl FileModelState for emFileLinkModel {
     fn GetFileStateSignal(&self) -> SignalId {
         self.rec_model.GetFileStateSignal()
     }
+
+    fn ensure_file_state_signal_dyn(
+        &self,
+        ectx: &mut dyn emcore::emEngineCtx::SignalCtx,
+    ) -> SignalId {
+        self.rec_model.ensure_file_state_signal_dyn(ectx)
+    }
 }
 
 #[cfg(test)]

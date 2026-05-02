@@ -416,4 +416,18 @@ impl<T: Record + Default> FileModelState for emRecFileModel<T> {
     fn GetFileStateSignal(&self) -> SignalId {
         self.file_state_signal.get()
     }
+
+    /// F019: dyn-safe lazy allocator. Mirrors the inherent
+    /// `emRecFileModel::ensure_file_state_signal` for callers (notably
+    /// `emFilePanel::Cycle`) that hold the model as `dyn FileModelState`.
+    fn ensure_file_state_signal_dyn(&self, ectx: &mut dyn SignalCtx) -> SignalId {
+        let cur = self.file_state_signal.get();
+        if cur.is_null() {
+            let new_id = ectx.create_signal();
+            self.file_state_signal.set(new_id);
+            new_id
+        } else {
+            cur
+        }
+    }
 }
