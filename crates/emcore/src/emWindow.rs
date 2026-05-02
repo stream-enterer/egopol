@@ -565,6 +565,7 @@ impl emWindow {
 
     /// Render a frame: paint dirty tiles on CPU, upload to GPU, composite.
     pub fn render(&mut self, gpu: &GpuContext) {
+        let _instr_t0 = crate::emInstr::wall_us();
         use crate::emPainter::emPainter;
 
         // Phase 3.5.A Task 7: tree is owned by this window; destructure `self`
@@ -697,6 +698,8 @@ impl emWindow {
 
         tile_cache.advance_frame();
 
+        let _instr_t_paint = crate::emInstr::wall_us();
+
         // Composite and present
         match compositor.render_frame(&gpu.device, &gpu.queue, surface, surface_config) {
             Ok(()) => {}
@@ -707,6 +710,21 @@ impl emWindow {
                 log::error!("render error: {e}");
             }
         }
+
+        let _instr_t_present = crate::emInstr::wall_us();
+        let mut _instr_buf = String::with_capacity(160);
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            _instr_buf,
+            "RENDER|enter_us={}|paint_done_us={}|present_done_us={}|paint_dur_us={}|present_dur_us={}|dirty_tiles={}",
+            _instr_t0,
+            _instr_t_paint,
+            _instr_t_present,
+            _instr_t_paint - _instr_t0,
+            _instr_t_present - _instr_t_paint,
+            dirty_count
+        );
+        crate::emInstr::write_line(&_instr_buf);
     }
 
     /// Multi-threaded tile rendering using a display list.

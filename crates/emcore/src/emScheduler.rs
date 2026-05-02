@@ -496,6 +496,7 @@ impl EngineScheduler {
 
         self.inner.instr.reset();
         let slice_t0 = std::time::Instant::now();
+        let slice_wall_enter_us = crate::emInstr::wall_us();
         let slice_clock_start = self.inner.clock;
         let slice_carry_in = self.inner.pending_signals.len() as u32;
 
@@ -565,7 +566,9 @@ impl EngineScheduler {
                     use std::fmt::Write as _;
                     let _ = writeln!(
                         buf,
-                        "SLICE|t_us={}|clock_start={}|clock_end={}|carry_in={}|cycled={}|drain_pushes={}|fire={}|timer={}|direct={}|max_pending={}|rearms={}",
+                        "SLICE|wall_enter_us={}|wall_exit_us={}|t_us={}|clock_start={}|clock_end={}|carry_in={}|cycled={}|drain_pushes={}|fire={}|timer={}|direct={}|max_pending={}|rearms={}",
+                        slice_wall_enter_us,
+                        crate::emInstr::wall_us(),
                         elapsed_us,
                         slice_clock_start,
                         self.inner.clock,
