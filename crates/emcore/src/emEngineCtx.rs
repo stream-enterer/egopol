@@ -710,6 +710,42 @@ impl<'a> PanelCtx<'a> {
         }
     }
 
+    /// Build a `PanelCtx` for notice/AE/AS/LayoutChildren dispatch in
+    /// `emView::handle_notice_one`, where `root_context` and `view_context`
+    /// arrive as `Option<&Rc<...>>` (golden-test paths legitimately pass
+    /// `None`). Production callers always pass `Some` for both; tests may
+    /// pass either.
+    ///
+    /// Distinct from `with_sched_reach` (which requires non-Option roots
+    /// and is used by full-reach EngineCtx callers like
+    /// `PanelCycleEngine::Cycle` and `create_control_panel_in`). Both
+    /// constructors set the same five reach handles required by
+    /// `as_sched_ctx()`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_sched_reach_for_notice(
+        tree: &'a mut PanelTree,
+        id: PanelId,
+        current_pixel_tallness: f64,
+        scheduler: &'a mut EngineScheduler,
+        framework_actions: &'a mut Vec<DeferredAction>,
+        root_context: Option<&'a Rc<emContext>>,
+        view_context: Option<&'a Rc<emContext>>,
+        framework_clipboard: &'a RefCell<Option<Box<dyn emClipboard>>>,
+        pending_actions: &'a Rc<RefCell<Vec<FrameworkDeferredAction>>>,
+    ) -> Self {
+        Self {
+            tree,
+            id,
+            current_pixel_tallness,
+            scheduler: Some(scheduler),
+            framework_clipboard: Some(framework_clipboard),
+            framework_actions: Some(framework_actions),
+            root_context,
+            view_context,
+            pending_actions: Some(pending_actions),
+        }
+    }
+
     /// Synthesize a `SchedCtx` from this `PanelCtx`'s scheduler-reach
     /// handles. Returns `None` if any of the four required handles
     /// (`scheduler`, `framework_actions`, `root_context`,

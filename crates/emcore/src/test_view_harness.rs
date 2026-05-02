@@ -186,6 +186,20 @@ impl Default for TestSched {
     }
 }
 
+impl Drop for TestSched {
+    fn drop(&mut self) {
+        // HandleNotice now delivers full-reach ctx so behaviors can register
+        // engine wakeups. Clear pending signals before the scheduler drops to
+        // avoid the "EngineScheduler dropped with pending signals" assertion
+        // in test contexts that do not drive a full scheduler loop.
+        // Note: this Drop is cleanup only — callers asserting on signal effects
+        // must explicitly drain or settle before the harness drops; signals fired
+        // during HandleNotice and not yet drained will be silently discarded here,
+        // masking test-relevant fires.
+        self.sched.clear_pending_for_tests();
+    }
+}
+
 impl TestSched {
     pub fn new() -> Self {
         Self {

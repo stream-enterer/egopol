@@ -62,8 +62,9 @@ impl PanelBehavior for ReachProbe {
 /// `as_sched_ctx()` returns None at each. Task 2 switches to
 /// `with_sched_reach`, turning this test green.
 #[test]
-#[ignore = "TDD-red: Task 2 extends HandleNotice with 3 missing reach handles"]
 fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
+    use std::cell::RefCell;
+
     let log = Rc::new(ReachLog::default());
 
     let mut tree = PanelTree::new();
@@ -74,6 +75,11 @@ fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
+    let root_ctx = emcore::emContext::emContext::NewRoot();
+    let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+    let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<emcore::emEngineCtx::FrameworkDeferredAction>>> =
+        Rc::new(RefCell::new(Vec::new()));
 
     // Make root the seek target so Phase 3 picks AutoExpand.
     tree.set_seek_pos_pub(root, "");
@@ -83,11 +89,27 @@ fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
 
     // Call 1: Phase 2 path — queue notice → fires notice(), re-adds to ring.
     tree.queue_notice(root, NoticeFlags::SOUGHT_NAME_CHANGED, None);
-    view.HandleNotice(&mut tree, &mut sched, None, None);
+    view.HandleNotice(
+        &mut tree,
+        &mut sched,
+        Some(&root_ctx),
+        None,
+        &mut fw_actions,
+        &fw_cb,
+        &pa,
+    );
 
     // Call 2: Phase 3+4 path — ae_decision_invalid set by Phase 2; fires
     // AutoExpand() then LayoutChildren().
-    view.HandleNotice(&mut tree, &mut sched, None, None);
+    view.HandleNotice(
+        &mut tree,
+        &mut sched,
+        Some(&root_ctx),
+        None,
+        &mut fw_actions,
+        &fw_cb,
+        &pa,
+    );
 
     assert!(
         log.notice.get(),
@@ -109,8 +131,9 @@ fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
 /// ae_invalid, clears ae_expanded, sets ae_decision_invalid, fires
 /// `AutoShrink()`.
 #[test]
-#[ignore = "TDD-red: Task 2 extends HandleNotice with 3 missing reach handles"]
 fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
+    use std::cell::RefCell;
+
     let log = Rc::new(ReachLog::default());
 
     let mut tree = PanelTree::new();
@@ -119,6 +142,11 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
+    let root_ctx = emcore::emContext::emContext::NewRoot();
+    let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+    let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<emcore::emEngineCtx::FrameworkDeferredAction>>> =
+        Rc::new(RefCell::new(Vec::new()));
 
     // Phase-1 AutoShrink path: ae_invalid=true + ae_expanded=true.
     tree.set_ae_invalid_pub(root, true);
@@ -129,7 +157,15 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
     // ae_invalid is checked before pending_notices.
     tree.queue_notice(root, NoticeFlags::SOUGHT_NAME_CHANGED, None);
 
-    view.HandleNotice(&mut tree, &mut sched, None, None);
+    view.HandleNotice(
+        &mut tree,
+        &mut sched,
+        Some(&root_ctx),
+        None,
+        &mut fw_actions,
+        &fw_cb,
+        &pa,
+    );
 
     assert!(
         log.auto_shrink.get(),
@@ -143,8 +179,9 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
 /// target → Phase 3 sees `!should_expand && ae_expanded` → fires
 /// `AutoShrink()`.
 #[test]
-#[ignore = "TDD-red: Task 2 extends HandleNotice with 3 missing reach handles"]
 fn notice_dispatch_sites_carry_full_reach_autoshrink_phase3() {
+    use std::cell::RefCell;
+
     let log = Rc::new(ReachLog::default());
 
     let mut tree = PanelTree::new();
@@ -153,6 +190,11 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase3() {
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
+    let root_ctx = emcore::emContext::emContext::NewRoot();
+    let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+    let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<emcore::emEngineCtx::FrameworkDeferredAction>>> =
+        Rc::new(RefCell::new(Vec::new()));
 
     // No seek target → should_expand = false. ae_expanded=true → Phase 3
     // fires AutoShrink.
@@ -160,7 +202,15 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase3() {
     tree.set_ae_expanded_pub(root, true);
     tree.mark_pending_notices_pub();
 
-    view.HandleNotice(&mut tree, &mut sched, None, None);
+    view.HandleNotice(
+        &mut tree,
+        &mut sched,
+        Some(&root_ctx),
+        None,
+        &mut fw_actions,
+        &fw_cb,
+        &pa,
+    );
 
     assert!(
         log.auto_shrink.get(),

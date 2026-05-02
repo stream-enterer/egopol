@@ -2643,7 +2643,23 @@ impl emView {
             // Drain all pending notices (C++ emView.cpp:1303-1314).
             if tree.has_pending_notices() {
                 let view_ctx = Rc::clone(&self.Context);
-                self.HandleNotice(tree, ctx.scheduler, Some(ctx.root_context), Some(&view_ctx));
+                let crate::emEngineCtx::SchedCtx {
+                    ref mut scheduler,
+                    root_context,
+                    ref mut framework_actions,
+                    framework_clipboard,
+                    pending_actions,
+                    ..
+                } = *ctx;
+                self.HandleNotice(
+                    tree,
+                    scheduler,
+                    Some(root_context),
+                    Some(&view_ctx),
+                    framework_actions,
+                    framework_clipboard,
+                    pending_actions,
+                );
                 continue;
             }
 
@@ -3893,19 +3909,48 @@ impl emView {
         }
     }
 
+    // DIVERGED: (language-forced) C++ emView::Update at emView.cpp:1303-1314
+    // dispatches notice via emPanel::HandleNotice (emPanel.cpp:1391+) where every
+    // emPanel carries emContext* with full scheduler/framework reach implicitly
+    // through its parent chain. Rust's canonical ownership model (CLAUDE.md
+    // §Ownership) forbids the panel-back-reference shape, so reach is conveyed
+    // through 5 explicit handles threaded through HandleNotice and
+    // handle_notice_one. Failure mode caught by F019-mirror investigation
+    // (docs/debug/investigations/notice-dispatch-reach-loss.md): when the 3
+    // non-scheduler handles were dropped at the function boundary, behavior
+    // dispatch sites built a partial-reach PanelCtx and as_sched_ctx() returned
+    // None — production panic at emFileLinkPanel::AutoExpand + 4 silent
+    // degradation sites.
+
     /// Port of C++ `emView::Update` notice-drain inner loop (emView.cpp:1303–1314).
     ///
     /// Drains `self.notice_ring_head_next` (the notice ring owned by this view),
     /// dispatching `handle_notice_one`/`LayoutChildren` on each panel using this
     /// view's own `CurrentPixelTallness` and `window_focused`.
     ///
+    /// The five scheduler-reach handles (`sched`, `framework_actions`,
+    /// `framework_clipboard`, `pending_actions`, plus `root_context`) flow into
+    /// the per-callback `PanelCtx` so behaviors can build a full-reach `SchedCtx`
+    /// via `as_sched_ctx()`. C++ parity: every emPanel implicitly carries its
+    /// emContext (with scheduler, framework actions, clipboard); Rust conveys the
+    /// same reach through five explicit handles. Production callers
+    /// (emSubViewPanel::Cycle, emView::Update self-call) thread these from their
+    /// surrounding `EngineCtx`. Test-only callers construct local dummy shims —
+    /// see `crates/emcore/src/emPanelTree.rs:3162` for the recipe.
+    ///
+    /// Spec: docs/superpowers/specs/2026-05-02-notice-dispatch-reach-loss-design.md
+    ///
     /// Returns `true` if any notices were handled.
+    #[allow(clippy::too_many_arguments)]
     pub fn HandleNotice(
         &mut self,
         tree: &mut PanelTree,
         sched: &mut crate::emScheduler::EngineScheduler,
         root_context: Option<&Rc<crate::emContext::emContext>>,
         view_context: Option<&Rc<crate::emContext::emContext>>,
+        framework_actions: &mut Vec<crate::emEngineCtx::DeferredAction>,
+        framework_clipboard: &RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>>,
+        pending_actions: &Rc<RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>>,
     ) -> bool {
         if !tree.has_pending_notices() && self.notice_ring_head_next.is_none() {
             return false;
@@ -3960,7 +4005,16 @@ impl emView {
                 // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
                 self.remove_from_notice_list(id, tree);
                 delivered = true;
-                self.handle_notice_one(tree, id, sched, root_context, view_context);
+                self.handle_notice_one(
+                    tree,
+                    id,
+                    sched,
+                    root_context,
+                    view_context,
+                    framework_actions,
+                    framework_clipboard,
+                    pending_actions,
+                );
             }
             // Re-scan if any tree-internal path set `has_pending_notices`
             // during the drain.
@@ -4004,6 +4058,17 @@ impl emView {
     ///             HandleNotice for the AE/layout phase)
     ///   Phase 3 — AE decision + AutoExpand/AutoShrink (lines 1424-1445)
     ///   Phase 4 — LayoutChildren if ChildrenLayoutInvalid (lines 1447-1450)
+    ///
+    /// The `sched`, `framework_actions`, `framework_clipboard`, `pending_actions`,
+    /// `root_context`, and `view_context` parameters enable each of the 5 dispatch
+    /// sites (AutoShrink×2, notice, AutoExpand, LayoutChildren) to build a
+    /// full-reach `PanelCtx` via `PanelCtx::with_sched_reach_for_notice`, so
+    /// behaviors can call `as_sched_ctx()` and reach the scheduler, clipboard, and
+    /// framework rails. `root_context` and `view_context` arrive as `Option` because
+    /// golden-test callers legitimately pass `None`; production callers always pass
+    /// `Some` for both. See `crates/emcore/src/emPanelTree.rs:3162` for the
+    /// test-harness recipe.
+    #[allow(clippy::too_many_arguments)]
     fn handle_notice_one(
         &mut self,
         tree: &mut PanelTree,
@@ -4011,6 +4076,9 @@ impl emView {
         sched: &mut crate::emScheduler::EngineScheduler,
         root_context: Option<&Rc<crate::emContext::emContext>>,
         view_context: Option<&Rc<crate::emContext::emContext>>,
+        framework_actions: &mut Vec<crate::emEngineCtx::DeferredAction>,
+        framework_clipboard: &RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>>,
+        pending_actions: &Rc<RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>>,
     ) {
         let pixel_tallness = self.CurrentPixelTallness;
         let window_focused = self.window_focused;
@@ -4030,9 +4098,17 @@ impl emView {
             }
             if ae_expanded {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
-                    ctx.root_context = root_context;
-                    ctx.view_context = view_context;
+                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                        tree,
+                        id,
+                        pixel_tallness,
+                        sched,
+                        framework_actions,
+                        root_context,
+                        view_context,
+                        framework_clipboard,
+                        pending_actions,
+                    );
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4097,9 +4173,17 @@ impl emView {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = tree.take_behavior(id) {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
-                let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
-                ctx.root_context = root_context;
-                ctx.view_context = view_context;
+                let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                    tree,
+                    id,
+                    pixel_tallness,
+                    sched,
+                    framework_actions,
+                    root_context,
+                    view_context,
+                    framework_clipboard,
+                    pending_actions,
+                );
                 behavior.notice(flags, &state, &mut ctx);
                 // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
                 if tree.panels.contains_key(id) {
@@ -4136,9 +4220,17 @@ impl emView {
                     p.ae_calling = true;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
-                    ctx.root_context = root_context;
-                    ctx.view_context = view_context;
+                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                        tree,
+                        id,
+                        pixel_tallness,
+                        sched,
+                        framework_actions,
+                        root_context,
+                        view_context,
+                        framework_clipboard,
+                        pending_actions,
+                    );
                     behavior.AutoExpand(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4162,9 +4254,17 @@ impl emView {
                     p.ae_expanded = false;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
-                    ctx.root_context = root_context;
-                    ctx.view_context = view_context;
+                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                        tree,
+                        id,
+                        pixel_tallness,
+                        sched,
+                        framework_actions,
+                        root_context,
+                        view_context,
+                        framework_clipboard,
+                        pending_actions,
+                    );
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4191,9 +4291,17 @@ impl emView {
         if children_layout_invalid {
             if tree.GetFirstChild(id).is_some() {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
-                    ctx.root_context = root_context;
-                    ctx.view_context = view_context;
+                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                        tree,
+                        id,
+                        pixel_tallness,
+                        sched,
+                        framework_actions,
+                        root_context,
+                        view_context,
+                        framework_clipboard,
+                        pending_actions,
+                    );
                     behavior.LayoutChildren(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -7918,7 +8026,15 @@ mod tests {
         );
 
         // Drive view_a's HandleNotice independently.
-        view_a.HandleNotice(&mut tree_a, &mut h.scheduler, None, None);
+        view_a.HandleNotice(
+            &mut tree_a,
+            &mut h.scheduler,
+            None,
+            None,
+            &mut h.framework_actions,
+            &h.framework_clipboard,
+            &h.pending_actions,
+        );
         // tree_a is drained; tree_b still has its notice.
         assert!(
             !tree_a.has_pending_notices(),
@@ -7930,7 +8046,15 @@ mod tests {
         );
 
         // Drive view_b's HandleNotice.
-        view_b.HandleNotice(&mut tree_b, &mut h.scheduler, None, None);
+        view_b.HandleNotice(
+            &mut tree_b,
+            &mut h.scheduler,
+            None,
+            None,
+            &mut h.framework_actions,
+            &h.framework_clipboard,
+            &h.pending_actions,
+        );
         assert!(
             !tree_b.has_pending_notices(),
             "tree_b drained after HandleNotice"

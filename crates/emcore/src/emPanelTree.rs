@@ -3162,7 +3162,21 @@ mod tests {
         let mut view =
             crate::emView::emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut _dummy_sched = EngineScheduler::new();
-        view.HandleNotice(&mut t, &mut _dummy_sched, None, None);
+        let mut _dummy_fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let _dummy_fw_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let _dummy_pa: std::rc::Rc<
+            std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+        > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        view.HandleNotice(
+            &mut t,
+            &mut _dummy_sched,
+            None,
+            None,
+            &mut _dummy_fw,
+            &_dummy_fw_cb,
+            &_dummy_pa,
+        );
 
         // Build name map
         let names: HashMap<PanelId, String> = t

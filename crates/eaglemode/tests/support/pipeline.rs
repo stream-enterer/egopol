@@ -194,8 +194,27 @@ impl PipelineTestHarness {
             &self.pending_actions,
         );
         self.view.pump_visiting_va(&mut self.tree);
-        self.view
-            .HandleNotice(&mut self.tree, &mut self.scheduler, None, None);
+        {
+            let Self {
+                ref mut view,
+                ref mut tree,
+                ref mut scheduler,
+                ref mut framework_actions,
+                root_context: _,
+                ref framework_clipboard,
+                ref pending_actions,
+                ..
+            } = *self;
+            view.HandleNotice(
+                tree,
+                scheduler,
+                None,
+                None,
+                framework_actions,
+                framework_clipboard,
+                pending_actions,
+            );
+        }
         let mut sc = SchedCtx {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
