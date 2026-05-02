@@ -538,3 +538,16 @@ Folded the Adversarial Review (above) into the design body; the review block is 
 - **M-3 verified** in Success Criteria: `emStocksFilePanel.rs:365` caller semantics for `dialog.Cycle() == false` preserved.
 
 **Dispatch status:** Dispatch-ready for rows 2 and 3 once prereqs (B-004 G1) land. **Row 1 has a coordination deferral** pending B-001 G3 scope-widening on the fetcher's upstream FileModel subscribes (I-1) — must be resolved (or explicitly accepted as a known undertest) before row 1 dispatch.
+
+## I-1 Closure — 2026-05-01 (B-001-followup Phase E)
+
+**I-1 closed.** B-001-followup Phase E (`39a6fb97`) promoted `emStocksPricesFetcher` to a scheduler engine and wired its first-Cycle init block to subscribe to `FileModel.GetChangeSignal()` and `FileModel.GetFileStateSignal()` per `emStocksPricesFetcher.cpp:38-39`. The proxy-engine pattern routes through `emStocksFetchPricesDialog` (which owns the fetcher), mirroring the I-3 ownership-shape decision for `emStocksFileModel`. Row 1's silent-undertest condition is resolved: the dialog's subscribe to `Fetcher.GetChangeSignal()` (consumer-side, merged earlier this session at `af3bc738`) now reaches `UpdateControls` for FileModel-driven transitions because the fetcher's own `Cycle` fires `Signal(ChangeSignal)` in response to the upstream subscribes.
+
+**Caveat — `GetFileStateSignal`:** `emStocksFileModel::GetFileStateSignal()` currently returns a null `SignalId` because `emRecFileModel` is ported standalone (not yet inheriting from `emFileModel` per the planned upstream-port lift). The subscribe wiring is in place; the signal will begin firing once the `emFileModel` lift lands. Marked `UPSTREAM-GAP:` per the Annotation Vocabulary — the wiring matches C++ behavior and waits on upstream port work. Phase E added a regression test verifying the subscribe site exists and the fetcher's Cycle dispatches correctly when the change-signal fires.
+
+**Status updates:**
+
+- §"Resolutions from Adversarial Review" item 4 — coordination deferral closed; B-017 row 1 is fully merged (consumer side at `af3bc738`, fetcher side at `39a6fb97`).
+- §"Adversarial Review" I-1 — closed by Phase E; see this section.
+- §"Amendment Log — 2026-05-01" I-1 line — coordination deferral resolved, row 1 reaches `merged`.
+- §"Dispatch status" — row 1 deferral lifted; all three rows merged or dispatch-ready.

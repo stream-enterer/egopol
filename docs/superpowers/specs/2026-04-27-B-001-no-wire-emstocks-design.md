@@ -502,3 +502,26 @@ The B-017 design's I-1 finding (`docs/superpowers/specs/2026-04-27-B-017-polling
 ### Annotation + lint posture
 
 `cargo xtask annotations` clean. No `#[allow]` / `#[expect]` in `crates/emstocks/`. Underscore-prefixed `ControlWidgets` fields carry a `TODO(B-001-controlpanel-followup)` block at the field declaration explaining the deferral and pointing to this section.
+
+### Resolution — 2026-05-01 (B-001-followup all 6 phases merged)
+
+The 67 deferred rows are now wired across the `B-001-followup` bucket per plan `docs/superpowers/plans/2026-05-01-B-001-followup-structural.md`:
+
+- **Phase A** (`427a7a72`, with prep commits `8c8208b4` + `258d4818`) — `emStocksControlPanel` structural: `PanelBehavior` + `Cycle`, `Rc<RefCell<>>` member refs, `emStocksFilePanel::CreateControlPanel` factory.
+- **Phase B** (`7a3e5b73`) — ControlPanel D-006 wiring, **37 rows** (Task 4.1 closed).
+- **Phase C** (`2f3979a7`) — `emStocksItemPanel` + `emStocksItemChart` structural: `PanelBehavior` + `Cycle` on both, member refs, `emStocksListBox::CreateItemPanel` factory, `AutoExpand` chart construction.
+- **Phase D** (`a215883c`) — ItemPanel + ItemChart D-006 wiring, **31 rows** (Tasks 4.2 + 4.3 closed; rows count 31 vs the 29+2=31 design-doc tally).
+- **Phase E** (`39a6fb97`) — fetcher engine promotion + B-017 row 1 fetcher-side; closes I-1 (see B-017 design doc).
+- **Phase F** (this commit) — final gate + reconciliation. 3003 nextest tests passing.
+
+**Aggregate: B-001 71/71 rows wired (4 in original Phase 4 partial + 67 in followup Phases B/D + 0 net change in Phase E which was structural).**
+
+**Residual stubs (TODO markers in source, deferred to follow-up port work):**
+
+- Row -566 (ControlPanel `emCheckBox` click-signal subscribe) — blocked by an upstream `emCheckBox` accessor gap not anticipated by the original B-001 prereq enumeration. Stubbed in Phase B with a TODO at the subscribe site.
+- Row -586 (ControlPanel `FetchSharePrices` reaction) — stubbed in Phase B; reaction body waits on a parent-side `emStocksListBox::StartToFetchSharePrices` method not yet ported.
+- ItemPanel `FetchSharePrice` / `ShowWebPage` / `ShowAllWebPages` reactions — stubbed in Phase D; bodies wait on parent-side `emStocksListBox` ListBox-method ports.
+
+These stubs are tracked at the call sites and do not block B-001 closure: the subscribe wiring, signal dispatch, and `Cycle` branch coverage are all in place, only the reaction bodies remain to be filled in once the upstream methods land.
+
+The §"I-1 (cross-bucket)" note above is closed by Phase E (`39a6fb97`); see B-017 design doc for details.

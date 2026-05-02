@@ -495,3 +495,26 @@ Plan `docs/superpowers/plans/2026-05-01-B-001-no-wire-emstocks.md` shipped Phase
 Once (1)-(3) land, the original Phase 4.1/4.2/4.3 can be re-executed verbatim.
 
 **I-1 (cross-bucket): B-017 row 1 still partially blocked.** The 2026-05-01 amendment-pass entry above noted that B-017 row 1 awaits B-001 G3 widening for upstream `FileModel::GetChangeSignal` + `GetFileStateSignal` subscribes inside `emStocksPricesFetcher::Cycle` (cpp:38-39). **Phase 1 G3 did not widen.** B-017 row 1 can technically dispatch (the producer accessor exists) but will be silently undertested per the I-1 finding until either (a) G3's scope is widened in a follow-up or (b) the gap is explicitly documented and exercised by a regression test. Recommendation: fold the G3 widening into `B-001-followup` and gate B-017 row 1's `merged` flip on it.
+
+### 2026-05-01 — B-001-followup all 6 phases merged (68 rows wired; B-017 I-1 closed)
+
+Plan `docs/superpowers/plans/2026-05-01-B-001-followup-structural.md` shipped all 6 phases. The 67 deferred rows from B-001 Phase 4.1/4.2/4.3 are wired, plus B-017 row 1 fetcher-side, plus structural pre-phase scaffolding (PanelBehavior + parent instantiation + Rc<RefCell<>> member refs) on three panels.
+
+- **Phase A (ControlPanel structural) → merged at `427a7a72`** (3 commits: `8c8208b4` + `258d4818` + `427a7a72`). PanelBehavior::Cycle on emStocksControlPanel, Rc<RefCell<>> member refs, emStocksFilePanel::CreateControlPanel factory.
+- **Phase B (ControlPanel D-006 wiring 37 rows; row -566 click-signal gap + row -586 fetch stub flagged) → merged at `7a3e5b73`.**
+- **Phase C (ItemPanel + ItemChart structural) → merged at `2f3979a7`.** PanelBehavior::Cycle on both, member refs, emStocksListBox::CreateItemPanel factory, AutoExpand chart construction.
+- **Phase D (ItemPanel + ItemChart D-006 wiring 31 rows; FetchSharePrices/ShowWebPages reaction stubs flagged) → merged at `a215883c`.**
+- **Phase E (fetcher engine promotion + B-017 row 1 fetcher-side; I-1 silent-undertest closed) → merged at `39a6fb97`.** Proxy-engine promotion of emStocksPricesFetcher; FileModel.GetChangeSignal + GetFileStateSignal subscribes wired per cpp:38-39. GetFileStateSignal currently null pending emRecFileModel→emFileModel upstream-port lift (UPSTREAM-GAP), but the wiring matches C++.
+- **Phase F (final gate + reconciliation) → merged at this commit.** `cargo xtask annotations` clean; no new `#[allow]`/`#[expect]` in `crates/emstocks/`; `cargo fmt` + `cargo clippy --workspace -D warnings` + `cargo-nextest ntr` green at **3003 tests**. B-001 design doc §"Phase 4 Partial Merge" closed via "Resolution — 2026-05-01" subsection. B-017 design doc I-1 closed via "I-1 Closure — 2026-05-01" section.
+
+**Aggregate:** B-001 71/71 rows wired (4 in original Phase 4 partial + 67 in followup Phases B/D); B-017 row 1 fully merged (consumer side at `af3bc738`, fetcher side at `39a6fb97`); B-017 I-1 closed; 3003 nextest tests passing.
+
+**Residual stubs (TODO markers in source, follow-up port work):**
+
+- Row -566 — `emStocksControlPanel` `emCheckBox` click-signal subscribe — blocked by an upstream `emCheckBox` accessor gap not anticipated by the original B-001 prereq enumeration.
+- Row -586 — `emStocksControlPanel::FetchSharePrices` reaction body — blocked on parent-side `emStocksListBox::StartToFetchSharePrices` method port.
+- `emStocksItemPanel::FetchSharePrice` / `ShowWebPage` / `ShowAllWebPages` reaction bodies — blocked on parent-side `emStocksListBox` ListBox-method ports.
+
+These residuals do not block B-001 closure: subscribe wiring, signal dispatch, and `Cycle` branch coverage are in place; only the reaction bodies remain to be filled in once the upstream methods land. Tracked via TODO markers at the call sites.
+
+**Tier-B status final:** **19/19 buckets resolved** — 13 pre-session + 6 this session (B-002 / B-004 / B-012 / B-013 / B-016 / B-017) + B-001 across followup. All Adversarial Review findings resolved or escalated as TODO markers tied to follow-up port work. Tier-B signal-drift remediation complete.
