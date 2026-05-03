@@ -152,6 +152,56 @@ def parse_set_focused_result(line):
     }
 
 
+def parse_handler_entry(line):
+    """B2.1 Phase 0: parse HANDLER_ENTRY."""
+    try:
+        f = _parse_kv_line(line, "HANDLER_ENTRY")
+    except ValueError:
+        return None
+    return {
+        "kind": "HANDLER_ENTRY",
+        "wall_us": int(f["wall_us"]),
+        "panel_id": f["panel_id"],
+        "impl": f.get("impl", ""),
+        "flags": int(f["flags"], 16),
+        "is_focused_path": f["is_focused_path"] == "t",
+        "branch_taken": f["branch_taken"] == "t",
+    }
+
+
+def parse_wup_result(line):
+    """B2.1 Phase 0: parse WUP_RESULT."""
+    try:
+        f = _parse_kv_line(line, "WUP_RESULT")
+    except ValueError:
+        return None
+    return {
+        "kind": "WUP_RESULT",
+        "wall_us": int(f["wall_us"]),
+        "panel_id": f["panel_id"],
+        "caller": f.get("caller", ""),
+        "panel_found": f["panel_found"] == "t",
+        "engine_id": f["engine_id"],
+        "scheduler_some": f["scheduler_some"] == "t",
+        "wake_dispatched": f["wake_dispatched"] == "t",
+    }
+
+
+def parse_cycle_entry(line):
+    """B2.1 Phase 0: parse CYCLE_ENTRY."""
+    try:
+        f = _parse_kv_line(line, "CYCLE_ENTRY")
+    except ValueError:
+        return None
+    return {
+        "kind": "CYCLE_ENTRY",
+        "wall_us": int(f["wall_us"]),
+        "engine_id": f["engine_id"],
+        "panel_id": f["panel_id"],
+        "behavior_type": f["behavior_type"],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Validation pre-pass
 # ---------------------------------------------------------------------------
