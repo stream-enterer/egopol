@@ -845,15 +845,42 @@ impl<'a> PanelCtx<'a> {
     /// C++ equivalent: panel->GetView().UpdateEngine->WakeUp().
     #[track_caller]
     pub fn wake_up_panel(&mut self, id: PanelId) {
-        let Some(panel) = self.tree.GetRec(id) else {
-            return;
+        let caller = std::panic::Location::caller();
+
+        // Compute panel state without holding the borrow into the dispatch.
+        // engine_id is Copy (small), so we can extract it and drop the
+        // panel reference before borrowing scheduler.
+        let (panel_found, engine_id) = match self.tree.GetRec(id) {
+            Some(panel) => (true, panel.engine_id),
+            None => (false, None),
         };
-        let Some(eid) = panel.engine_id else {
-            return;
+
+        let scheduler_some = self.scheduler.is_some();
+
+        let wake_dispatched = match (engine_id, self.scheduler.as_deref_mut()) {
+            (Some(eid), Some(sched)) => {
+                sched.wake_up(eid);
+                true
+            }
+            _ => false,
         };
-        if let Some(sched) = self.scheduler.as_deref_mut() {
-            sched.wake_up(eid);
-        }
+
+        // Phase 0 (B2.1): WUP_RESULT — single-exit emit so all guard
+        // outcomes can be distinguished by the analyzer. wake_dispatched=t
+        // iff sched.wake_up was actually invoked (which itself emits a
+        // WAKE log line unconditionally).
+        let line = format!(
+            "WUP_RESULT|wall_us={}|panel_id={:?}|caller={}:{}|panel_found={}|engine_id={:?}|scheduler_some={}|wake_dispatched={}\n",
+            crate::emInstr::wall_us(),
+            id,
+            caller.file(),
+            caller.line(),
+            if panel_found { "t" } else { "f" },
+            engine_id,
+            if scheduler_some { "t" } else { "f" },
+            if wake_dispatched { "t" } else { "f" },
+        );
+        crate::emInstr::write_line(&line);
     }
 
     /// Returns true if this panel is the view's current seek target.
