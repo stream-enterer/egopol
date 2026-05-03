@@ -78,11 +78,9 @@ fn link_panel_subscribes_to_file_update_broadcast_signal() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
     let update_sig = h.scheduler.file_update_signal;
@@ -117,11 +115,9 @@ fn make_control_panel(
         let ctx = Rc::clone(ic.root_context);
         emFileManControlPanel::new(&mut ic, ctx)
     };
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     (panel, eid)
 }
 
@@ -546,11 +542,9 @@ fn link_panel_first_cycle_subscribes_update_signal() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, eid, &mut panel);
     let vc = emFileManViewConfig::Acquire(&ctx);
     {

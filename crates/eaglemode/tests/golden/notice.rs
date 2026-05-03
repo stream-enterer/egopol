@@ -26,7 +26,7 @@ macro_rules! require_golden {
 /// Attach NoticeBehavior to a panel and return the shared accumulator.
 fn attach_notice(tree: &mut PanelTree, id: PanelId) -> Rc<RefCell<NoticeFlags>> {
     let acc = Rc::new(RefCell::new(NoticeFlags::empty()));
-    tree.set_behavior(id, Box::new(NoticeBehavior::new(acc.clone())));
+    tree.set_behavior(id, NoticeBehavior::new(acc.clone()));
     acc
 }
 

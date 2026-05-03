@@ -51,10 +51,10 @@ fn engine_modifies_panel_on_signal() {
 
     // emEngine increments counter when signal fires
     let eng = h.scheduler.register_engine(
-        Box::new(CounterEngine {
+        CounterEngine {
             counter: Rc::clone(&counter),
             delta: 1,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -83,9 +83,9 @@ fn timer_drives_engine_wake() {
     h.scheduler.start_timer(timer, 0, false);
 
     let eng = h.scheduler.register_engine(
-        Box::new(FlagEngine {
+        FlagEngine {
             flag: engine_ran_clone,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -119,10 +119,10 @@ fn signal_removal_while_pending() {
 
     let sig = h.scheduler.create_signal();
     let eng = h.scheduler.register_engine(
-        Box::new(CounterEngine {
+        CounterEngine {
             counter: Rc::clone(&counter),
             delta: 1,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -147,12 +147,12 @@ fn engine_fires_signal_waking_sibling() {
 
     // emEngine A: high priority, fires signal on first Cycle
     let _eng_a = h.scheduler.register_engine(
-        Box::new(SignalFiringEngine {
+        SignalFiringEngine {
             label: "A",
             log: Rc::clone(&log),
             signal: Some(sig),
             fired: false,
-        }),
+        },
         Priority::High,
         PanelScope::Framework,
     );
@@ -160,12 +160,12 @@ fn engine_fires_signal_waking_sibling() {
 
     // emEngine B: low Getpriorityoken by signal
     let eng_b = h.scheduler.register_engine(
-        Box::new(SignalFiringEngine {
+        SignalFiringEngine {
             label: "B",
             log: Rc::clone(&log),
             signal: None,
             fired: false,
-        }),
+        },
         Priority::Low,
         PanelScope::Framework,
     );

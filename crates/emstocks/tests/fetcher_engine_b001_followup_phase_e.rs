@@ -48,11 +48,9 @@ fn fetcher_subscribes_to_file_model_signals_on_first_cycle() {
     // subscribe to `FileModel.GetChangeSignal` + `GetFileStateSignal`
     // (cpp:38-39) and connects the dialog's engine to each.
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let model = fresh_model();
     let mut dialog = emStocksFetchPricesDialog::new_with_model("", "", "", model.clone());
@@ -91,11 +89,9 @@ fn fetcher_subscribes_to_file_model_signals_on_first_cycle() {
 fn fetcher_cycle_idempotent_under_repeated_drive() {
     // Second Cycle must not re-subscribe (idempotent first-Cycle latch).
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let model = fresh_model();
     let mut dialog = emStocksFetchPricesDialog::new_with_model("", "", "", model.clone());
@@ -127,11 +123,9 @@ fn fetcher_cycle_returns_false_when_file_state_not_loaded() {
     // `FileState::Waiting`, so `cycle()` must early-return without driving
     // PollProcess/StartProcess.
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let model = fresh_model();
     let mut dialog = emStocksFetchPricesDialog::new_with_model("", "", "", model.clone());
@@ -160,11 +154,9 @@ fn fetcher_subscribe_skipped_when_no_file_model_attached() {
     // attempt to subscribe — the fetcher's `cycle()` returns false and
     // leaves `subscribed_init` false.
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let mut dialog = emStocksFetchPricesDialog::new("", "", "");
     {

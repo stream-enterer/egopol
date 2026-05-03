@@ -207,7 +207,10 @@ impl emDirEntryPanel {
                     stat_mode,
                     0,
                 );
-                let child_id = ctx.create_child_with(CONTENT_NAME, behavior);
+                // Pre-erased: behavior comes from emFpPluginList::CreateFilePanelWithStat
+                // (cdylib ABI, plugin-path). Concrete type is not recoverable here.
+                let child_id =
+                    ctx.create_child_with_dyn(CONTENT_NAME, behavior, "<dyn PanelBehavior>");
                 ctx.be_first_child(child_id);
                 // Register for cycling so the file panel's model loads.
                 ctx.wake_up_panel(child_id);
@@ -280,7 +283,7 @@ impl emDirEntryPanel {
                     self.dir_entry.clone(),
                     1,
                 );
-                let child_id = ctx.create_child_with(ALT_NAME, Box::new(alt));
+                let child_id = ctx.create_child_with(ALT_NAME, alt);
                 self.alt_panel = Some(child_id);
                 force_relayout = true;
             }
@@ -1223,7 +1226,7 @@ impl PanelBehavior for emDirEntryPanel {
         if !parent_dir.is_empty() {
             panel = panel.with_dir_path(parent_dir);
         }
-        Some(parent_ctx.create_child_with(name, Box::new(panel)))
+        Some(parent_ctx.create_child_with(name, panel))
     }
 
     fn GetIconFileName(&self) -> Option<String> {

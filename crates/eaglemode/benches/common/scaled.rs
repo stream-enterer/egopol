@@ -51,9 +51,9 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0, None);
     tree.set_behavior(
         root,
-        Box::new(ColorPanel {
+        ColorPanel {
             color: color_for_index(0),
-        }),
+        },
     );
     tree.set_focusable(root, true);
 
@@ -76,9 +76,9 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
                     tree.Layout(child, x, 0.0, w, 1.0, 1.0, None);
                     tree.set_behavior(
                         child,
-                        Box::new(ColorPanel {
+                        ColorPanel {
                             color: color_for_index(created),
-                        }),
+                        },
                     );
                     next_parents.push(child);
                     created += 1;

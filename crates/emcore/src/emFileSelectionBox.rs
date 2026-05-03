@@ -290,8 +290,7 @@ impl PanelBehavior for FileItemPanelBehavior {
             // behavior directly: read the file and paint it as text.
             let content_id = ctx.create_child("content");
             let path = self.parent_dir.join(&self.name);
-            ctx.tree
-                .set_behavior(content_id, Box::new(TextFilePanel::new(&path)));
+            ctx.tree.set_behavior(content_id, TextFilePanel::new(&path));
             let _overlay_id = ctx.create_child("overlay");
         }
         // C++ FileItemPanel::LayoutChildren (emFileSelectionBox.cpp:1095-1112):
@@ -1241,10 +1240,10 @@ impl emFileSelectionBox {
             self.dir_text_sig = tf.text_signal;
             let id = ctx.create_child_with(
                 "directory",
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     text_field: tf,
                     is_focused: false,
-                }),
+                },
             );
             self.dir_field_id = Some(id);
         }
@@ -1257,8 +1256,7 @@ impl emFileSelectionBox {
             };
             cb.SetChecked(self.hidden_files_shown, ctx);
             self.hidden_check_sig = cb.check_signal;
-            let id =
-                ctx.create_child_with("showHiddenFiles", Box::new(CheckBoxPanel { check_box: cb }));
+            let id = ctx.create_child_with("showHiddenFiles", CheckBoxPanel { check_box: cb });
             self.hidden_cb_id = Some(id);
         }
 
@@ -1307,7 +1305,7 @@ impl emFileSelectionBox {
             });
             self.files_sel_sig = lb.selection_signal;
             self.files_trigger_sig = lb.item_trigger_signal;
-            let id = ctx.create_child_with("files", Box::new(ListBoxPanel { list_box: lb }));
+            let id = ctx.create_child_with("files", ListBoxPanel { list_box: lb });
             self.files_lb_id = Some(id);
         }
 
@@ -1325,10 +1323,10 @@ impl emFileSelectionBox {
             self.name_text_sig = tf.text_signal;
             let id = ctx.create_child_with(
                 "name",
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     text_field: tf,
                     is_focused: false,
-                }),
+                },
             );
             self.name_field_id = Some(id);
         }
@@ -1348,7 +1346,7 @@ impl emFileSelectionBox {
                 lb.SetSelectedIndex(self.selected_filter_index as usize);
             }
             self.filter_sel_sig = lb.selection_signal;
-            let id = ctx.create_child_with("filter", Box::new(ListBoxPanel { list_box: lb }));
+            let id = ctx.create_child_with("filter", ListBoxPanel { list_box: lb });
             self.filter_lb_id = Some(id);
         }
 
@@ -2039,12 +2037,12 @@ mod tests {
 
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("b007_fsb");
-        let engine = Box::new(FsbEngine {
+        let engine = FsbEngine {
             fsb: fsb_rc.clone(),
             tree,
             root,
             cycles_run: 0,
-        });
+        };
         let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
         sched.wake_up(eid);
 

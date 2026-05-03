@@ -181,13 +181,13 @@ fn emcolorfield_first_cycle_init_captures_eight_child_signals() {
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("cf_root");
 
-    let driver = Box::new(ColorFieldDriver {
+    let driver = ColorFieldDriver {
         cf: cf_rc.clone(),
         tree,
         root,
         cycles: 0,
         initialized: false,
-    });
+    };
     let eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -337,7 +337,7 @@ fn emfilepanel_first_cycle_subscribes_to_model_signal() {
         .borrow_mut()
         .SetFileModel(Some(model.clone() as Rc<RefCell<dyn FileModelState>>));
 
-    let eid = sched.register_engine(Box::new(driver), Priority::Low, PanelScope::Framework);
+    let eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
     do_slice(&mut sched);
 
@@ -369,7 +369,7 @@ fn emfilepanel_model_swap_re_subscribes() {
         .borrow_mut()
         .SetFileModel(Some(m1.clone() as Rc<RefCell<dyn FileModelState>>));
 
-    let eid = sched.register_engine(Box::new(driver), Priority::Low, PanelScope::Framework);
+    let eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
     do_slice(&mut sched);
     assert_eq!(panel.borrow().subscribed_file_state_signal_for_test(), s1);
@@ -400,7 +400,7 @@ fn emfilepanel_clear_model_disconnects() {
     panel
         .borrow_mut()
         .SetFileModel(Some(m.clone() as Rc<RefCell<dyn FileModelState>>));
-    let eid = sched.register_engine(Box::new(driver), Priority::Low, PanelScope::Framework);
+    let eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
     do_slice(&mut sched);
     assert_eq!(panel.borrow().subscribed_file_state_signal_for_test(), s);
@@ -431,7 +431,7 @@ fn emfilepanel_signal_arrival_triggers_state_recompute() {
     panel
         .borrow_mut()
         .SetFileModel(Some(m.clone() as Rc<RefCell<dyn FileModelState>>));
-    let eid = sched.register_engine(Box::new(driver), Priority::Low, PanelScope::Framework);
+    let eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
     // First slice subscribes; verify the initial vir state is `Loaded`

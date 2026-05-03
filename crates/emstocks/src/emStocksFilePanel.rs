@@ -653,7 +653,7 @@ impl PanelBehavior for emStocksFilePanel {
             self.config.clone(),
             list_box,
         );
-        Some(parent_ctx.create_child_with(name, Box::new(cp)))
+        Some(parent_ctx.create_child_with(name, cp))
     }
 }
 
@@ -1208,11 +1208,9 @@ mod tests {
 
         let mut h = TestViewHarness::new();
         let mut panel = emStocksFilePanel::default();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         // Inject the list_box directly (skipping the VFS-Loaded materialise
         // path that is also tested elsewhere). The B-001-255 contract under

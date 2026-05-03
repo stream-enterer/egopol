@@ -111,7 +111,7 @@ fn panel_ctx_operations() {
 fn notice_flag_propagation() {
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
-    tree.set_behavior(root, Box::new(TestBehavior::new()));
+    tree.set_behavior(root, TestBehavior::new());
 
     // Creating a child should set CHILDREN_CHANGED on GetParentContext
     let _child = tree.create_child(root, "child", None);

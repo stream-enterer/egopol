@@ -568,7 +568,7 @@ impl emEngine for StartupEngine {
                 ctx.tree
                     .as_deref_mut()
                     .expect("StartupEngine: Toplevel scope")
-                    .set_behavior(overlay_id, Box::new(StartupOverlayPanel));
+                    .set_behavior(overlay_id, StartupOverlayPanel);
                 ctx.tree
                     .as_deref_mut()
                     .expect("StartupEngine: Toplevel scope")
@@ -622,10 +622,8 @@ impl emEngine for StartupEngine {
                             // matching C++ emMainWindow.cpp:408-413 and state 6 pattern.
                             // ROOT_SAME_TALLNESS on the sub-view will update sub_root
                             // height to ControlTallness via SetGeometry.
-                            sub_tree.set_behavior(
-                                sub_root,
-                                Box::new(emMainControlPanel::new(ctrl_ctx, avm_rc)),
-                            );
+                            sub_tree
+                                .set_behavior(sub_root, emMainControlPanel::new(ctrl_ctx, avm_rc));
                             sub_tree.fire_init_notices(sub_root, None);
                         });
                 }
@@ -659,10 +657,7 @@ impl emEngine for StartupEngine {
                             // C++ creates emMainContentPanel as the root panel
                             // of the content view — set behavior on sub-tree root
                             // directly (no extra child level).
-                            sub_tree.set_behavior(
-                                sub_root,
-                                Box::new(emMainContentPanel::new(content_ctx)),
-                            );
+                            sub_tree.set_behavior(sub_root, emMainContentPanel::new(content_ctx));
                             // C++ emMainContentPanel constructor creates the
                             // cosmos panel directly (not via AutoExpand). Do
                             // the same here so the cosmos is permanent
@@ -671,9 +666,7 @@ impl emEngine for StartupEngine {
                             let cosmos_id = sub_tree.create_child(sub_root, "", None);
                             sub_tree.set_behavior(
                                 cosmos_id,
-                                Box::new(crate::emVirtualCosmos::emVirtualCosmosPanel::new(
-                                    content_ctx2,
-                                )),
+                                crate::emVirtualCosmos::emVirtualCosmosPanel::new(content_ctx2),
                             );
                             sub_tree.with_behavior_as::<emMainContentPanel, _>(sub_root, |mcp| {
                                 mcp.set_cosmos_panel(cosmos_id);
@@ -1019,7 +1012,7 @@ pub fn create_main_window(
     // happens below); wire the Weak back after the window is inserted.
     let panel = emMainPanel::new(Rc::clone(&app.context), mw.config.control_tallness);
     let root_id = home_tree.create_root("root", false);
-    home_tree.set_behavior(root_id, Box::new(panel));
+    home_tree.set_behavior(root_id, panel);
     mw.main_panel_id = Some(root_id);
 
     // Port of C++ `emMainPanel::emMainPanel` constructor
@@ -1033,7 +1026,7 @@ pub fn create_main_window(
     let ctrl_id = home_tree.create_child(root_id, "control view", None);
     let content_id = home_tree.create_child(root_id, "content view", None);
     let slider_id = home_tree.create_child(root_id, "slider", None);
-    home_tree.set_behavior(slider_id, Box::new(SliderPanel::new()));
+    home_tree.set_behavior(slider_id, SliderPanel::new());
 
     home_tree.with_behavior_as::<emMainPanel, _>(root_id, |mp| {
         mp.set_control_view_panel(ctrl_id);
@@ -1094,7 +1087,7 @@ pub fn create_main_window(
         );
         svp
     };
-    home_tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
+    home_tree.set_behavior(ctrl_id, ctrl_svp);
 
     let content_svp = {
         let root_ctx = app.context.GetRootContext();
@@ -1113,7 +1106,7 @@ pub fn create_main_window(
         svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
         svp
     };
-    home_tree.set_behavior(content_id, Box::new(content_svp));
+    home_tree.set_behavior(content_id, content_svp);
 
     // Phase 3.5.A Task 7: mark the root panel as view-owned and hand the
     // tree to the window (it owns it from here on). Formerly this ran as
@@ -1173,7 +1166,7 @@ pub fn create_main_window(
     let startup_engine =
         StartupEngine::new(Rc::clone(&app.context), root_id, window_id, &mw.config);
     let engine_id = app.scheduler.register_engine(
-        Box::new(startup_engine),
+        startup_engine,
         Priority::Low,
         PanelScope::Toplevel(window_id),
     );
@@ -1200,7 +1193,7 @@ pub fn create_main_window(
     };
     let mw_engine_id =
         app.scheduler
-            .register_engine(Box::new(mw_engine), Priority::Low, PanelScope::Framework);
+            .register_engine(mw_engine, Priority::Low, PanelScope::Framework);
     app.scheduler.connect(close_signal, mw_engine_id);
     app.scheduler.connect(title_signal, mw_engine_id);
 
@@ -1255,9 +1248,9 @@ pub fn create_main_window(
         content_panel_id: content_id,
         content_ctrl_panel: None,
     };
-    let bridge_id =
-        app.scheduler
-            .register_engine(Box::new(bridge), Priority::Low, PanelScope::Framework);
+    let bridge_id = app
+        .scheduler
+        .register_engine(bridge, Priority::Low, PanelScope::Framework);
     app.scheduler.connect(cp_signal, bridge_id);
 
     // Register emWindowStateSaver engine — persists window geometry.
@@ -1293,9 +1286,9 @@ pub fn create_main_window(
             saver.Restore(win, screen);
         }
 
-        let saver_id =
-            app.scheduler
-                .register_engine(Box::new(saver), Priority::Low, PanelScope::Framework);
+        let saver_id = app
+            .scheduler
+            .register_engine(saver, Priority::Low, PanelScope::Framework);
         app.scheduler.connect(flags_signal, saver_id);
         app.scheduler.connect(focus_signal, saver_id);
         app.scheduler.connect(geometry_signal, saver_id);
@@ -1344,7 +1337,7 @@ pub fn create_control_window(
     // populate, then `put_tree` onto the new emWindow.
     let mut ctrl_tree = emcore::emPanelTree::PanelTree::new();
     let root_id = ctrl_tree.create_root("ctrl_window_root", false);
-    ctrl_tree.set_behavior(root_id, Box::new(ctrl_panel));
+    ctrl_tree.set_behavior(root_id, ctrl_panel);
 
     let flags = WindowFlags::AUTO_DELETE;
     let close_signal = app.scheduler.create_signal();
@@ -1452,7 +1445,7 @@ fn RecreateContentPanels(app: &mut App) {
             // Create new content panel (C++ emMainWindow.cpp:303).
             let sub_tree = svp.sub_tree_mut();
             let child_id = sub_tree.create_child(sub_root, "", None);
-            sub_tree.set_behavior(child_id, Box::new(emMainContentPanel::new(root_ctx)));
+            sub_tree.set_behavior(child_id, emMainContentPanel::new(root_ctx));
             sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
             // Restore visit (C++ emMainWindow.cpp:304).

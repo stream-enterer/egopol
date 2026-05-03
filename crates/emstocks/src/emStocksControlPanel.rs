@@ -1274,11 +1274,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksControlPanel::for_test();
         assert!(!panel.subscribed_init);
@@ -1861,9 +1859,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksControlPanel::for_test();
         assert!(!panel.subscribed_init);
@@ -1904,9 +1902,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksControlPanel::for_test();
         let mut tree = emcore::emPanelTree::PanelTree::new();
@@ -1955,9 +1953,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         // Build panel with shared Config so we can observe writes.
         let model = Rc::new(RefCell::new(emStocksFileModel::new(

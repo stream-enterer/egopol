@@ -121,6 +121,16 @@ impl emEngine for PanelCycleEngine {
                     );
                     let busy = behavior.Cycle(&mut ectx, &mut pctx);
                     let inval = pctx.take_invalidate_self_request();
+                    {
+                        let line = format!(
+                            "INVAL_DRAIN|wall_us={}|engine_id={:?}|panel_id={:?}|drained={}\n",
+                            crate::emInstr::wall_us(),
+                            ctx.engine_id,
+                            self.panel_id,
+                            if inval { "t" } else { "f" },
+                        );
+                        crate::emInstr::write_line(&line);
+                    }
                     (busy, inval)
                 };
                 let ctx_tree = ctx
@@ -226,6 +236,16 @@ impl emEngine for PanelCycleEngine {
                     );
                     let busy = behavior.Cycle(&mut ectx, &mut pctx);
                     let inval = pctx.take_invalidate_self_request();
+                    {
+                        let line = format!(
+                            "INVAL_DRAIN|wall_us={}|engine_id={:?}|panel_id={:?}|drained={}\n",
+                            crate::emInstr::wall_us(),
+                            ctx.engine_id,
+                            self.panel_id,
+                            if inval { "t" } else { "f" },
+                        );
+                        crate::emInstr::write_line(&line);
+                    }
                     (busy, inval)
                 };
 

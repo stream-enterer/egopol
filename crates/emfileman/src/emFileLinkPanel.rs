@@ -219,14 +219,16 @@ impl emFileLinkPanel {
             }
             if self.have_dir_entry_panel {
                 let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), self.dir_entry.clone());
-                let child_id = ctx.create_child_with("", Box::new(panel));
+                let child_id = ctx.create_child_with("", panel);
                 self.child_panel = Some(child_id);
             } else {
                 let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
                 let fppl = fppl.borrow();
                 let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
                 let behavior = fppl.CreateFilePanel(ctx, &parent_arg, "", &self.full_path, 0);
-                let child_id = ctx.create_child_with("", behavior);
+                // Pre-erased: behavior comes from emFpPluginList::CreateFilePanel
+                // (cdylib ABI, plugin-path). Concrete type is not recoverable here.
+                let child_id = ctx.create_child_with_dyn("", behavior, "<dyn PanelBehavior>");
                 ctx.wake_up_panel(child_id);
                 self.child_panel = Some(child_id);
             }

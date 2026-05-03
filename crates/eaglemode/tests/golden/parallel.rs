@@ -72,7 +72,8 @@ fn assert_parallel_identical(
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
-    tree.set_behavior(root, behavior);
+    // Pre-erased: behavior is Box<dyn PanelBehavior> from caller; concrete type not recoverable.
+    tree.set_behavior_dyn(root, behavior, "<dyn PanelBehavior>");
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
@@ -350,12 +351,12 @@ fn parallel_benchmark() {
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
         tree.set_behavior(
             root,
-            Box::new(BorderBehavior {
+            BorderBehavior {
                 border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
-            }),
+            },
         );
         let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -376,12 +377,12 @@ fn parallel_benchmark() {
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
         tree.set_behavior(
             root,
-            Box::new(BorderBehavior {
+            BorderBehavior {
                 border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
-            }),
+            },
         );
         let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -420,12 +421,12 @@ fn parallel_benchmark() {
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
         tree.set_behavior(
             root,
-            Box::new(BorderBehavior {
+            BorderBehavior {
                 border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
-            }),
+            },
         );
         let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -441,12 +442,12 @@ fn parallel_benchmark() {
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
         tree.set_behavior(
             root,
-            Box::new(BorderBehavior {
+            BorderBehavior {
                 border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look,
-            }),
+            },
         );
         let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);

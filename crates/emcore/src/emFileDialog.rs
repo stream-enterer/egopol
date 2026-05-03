@@ -102,7 +102,7 @@ impl emFileDialog {
             let pending = dialog.pending_mut();
             let tree = pending.window.tree_mut();
             let pid = tree.create_child(content_id, "fsb", None);
-            tree.set_behavior(pid, Box::new(fsb));
+            tree.set_behavior(pid, fsb);
             pid
         };
 

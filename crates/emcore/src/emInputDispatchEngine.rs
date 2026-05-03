@@ -113,7 +113,7 @@ mod tests {
         > = std::cell::RefCell::new(None);
 
         let eid = sched.register_engine(
-            Box::new(InputDispatchEngine),
+            InputDispatchEngine,
             Priority::VeryHigh,
             PanelScope::Framework,
         );

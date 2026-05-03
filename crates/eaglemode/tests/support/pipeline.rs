@@ -252,7 +252,9 @@ impl PipelineTestHarness {
         behavior: Box<dyn PanelBehavior>,
     ) -> PanelId {
         let id = self.add_panel(parent_context, name);
-        self.tree.set_behavior(id, behavior);
+        // Pre-erased: behavior is Box<dyn PanelBehavior> from caller; concrete type not recoverable.
+        self.tree
+            .set_behavior_dyn(id, behavior, "<dyn PanelBehavior>");
         id
     }
 

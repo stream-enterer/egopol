@@ -542,7 +542,7 @@ impl PanelBehavior for CustomItemBehavior {
             "This is a custom list\nbox item panel (it is\nrecursive...)",
             self.look.clone(),
         );
-        ctx.create_child_with("t", Box::new(LabelPanel { widget: label }));
+        ctx.create_child_with("t", LabelPanel { widget: label });
 
         // "l": recursive CustomListBox with parent listbox's look (cpp:945-955).
         let look = self.look.clone();
@@ -563,7 +563,7 @@ impl PanelBehavior for CustomItemBehavior {
                 look: look.clone(),
             })
         });
-        ctx.create_child_with("l", Box::new(ListBoxPanel { widget: lb }));
+        ctx.create_child_with("l", ListBoxPanel { widget: lb });
     }
 }
 
@@ -1500,7 +1500,7 @@ impl PanelBehavior for TestPanel {
 
         // C++ AutoExpand (emTestPanel.cpp:480–497): creates TkTestGrp, TP1–TP4,
         // BgColorField, PolyDraw; calls AddWakeUpSignal on BgColorField's color signal.
-        let tktest_id = ctx.create_child_with("TkTestGrp", Box::new(TkTestGrpPanel::new()));
+        let tktest_id = ctx.create_child_with("TkTestGrp", TkTestGrpPanel::new());
         ctx.tree.SetAutoExpansionThreshold(
             tktest_id,
             900.0,
@@ -1512,7 +1512,7 @@ impl PanelBehavior for TestPanel {
         for i in 1..=4u32 {
             let tp_id = ctx.create_child_with(
                 &format!("{i}"),
-                Box::new(TestPanel::new(root_ctx.clone(), DEFAULT_BG)),
+                TestPanel::new(root_ctx.clone(), DEFAULT_BG),
             );
             ctx.tree.SetAutoExpansionThreshold(
                 tp_id,
@@ -1533,10 +1533,10 @@ impl PanelBehavior for TestPanel {
         cf.set_initial_alpha_enabled(true);
         cf.set_initial_color(bg_shared.get());
         self.bg_color_signal = Some(cf.color_signal);
-        ctx.create_child_with("BgColorField", Box::new(ColorFieldPanel { widget: cf }));
+        ctx.create_child_with("BgColorField", ColorFieldPanel { widget: cf });
 
         // PolyDraw — C++ name "PolyDraw" (emTestPanel.cpp:494).
-        ctx.create_child_with("PolyDraw", Box::new(PolyDrawPanel::new()));
+        ctx.create_child_with("PolyDraw", PolyDrawPanel::new());
 
         // Wake engine so Cycle runs to connect bg_color_signal on the first frame after expansion.
         ctx.wake_up();
@@ -1599,7 +1599,7 @@ impl PanelBehavior for TestPanel {
             bg.GetPacked()
         );
         let label = emLabel::new(&text, emLook::new());
-        Some(ctx.create_child_with(name, Box::new(LabelPanel { widget: label })))
+        Some(ctx.create_child_with(name, LabelPanel { widget: label }))
     }
 }
 
@@ -1640,12 +1640,12 @@ impl PanelBehavior for TkTestGrpPanel {
         // C++ TkTestGrp::AutoExpand (emTestPanel.cpp:882–910): creates sp → sp1/sp2 → t1a/t1b/t2a/t2b.
         // DIVERGED: (dependency-forced) emSplitter is not yet ported; 2×2 grid laid out manually.
         // Observable difference: panel proportions use fixed 80/20 splits instead of user-draggable splitters.
-        ctx.create_child_with("t1a", Box::new(TkTestPanel::new(self.look.clone())));
-        ctx.create_child_with("t1b", Box::new(TkTestPanel::new(self.look.clone())));
-        ctx.create_child_with("t2a", Box::new(TkTestPanel::new(self.look.clone())));
+        ctx.create_child_with("t1a", TkTestPanel::new(self.look.clone()));
+        ctx.create_child_with("t1b", TkTestPanel::new(self.look.clone()));
+        ctx.create_child_with("t2a", TkTestPanel::new(self.look.clone()));
         let t2b_id = ctx.create_child_with(
             "t2b",
-            Box::new(TkTestPanel::new(self.look.clone()).with_caption("Disabled")),
+            TkTestPanel::new(self.look.clone()).with_caption("Disabled"),
         );
         ctx.tree
             .SetEnableSwitch(t2b_id, false, ctx.scheduler.as_deref_mut());
@@ -1830,7 +1830,7 @@ impl TkTestPanel {
             rg.layout.preferred_child_tallness = p;
         }
         let id = ctx.tree.create_child(ctx.id, name, None);
-        ctx.tree.set_behavior(id, Box::new(rg));
+        ctx.tree.set_behavior(id, rg);
         id
     }
 
@@ -1842,8 +1842,7 @@ impl TkTestPanel {
         {
             let id = ctx.tree.create_child(gid, "b1", None);
             let w = emButton::new(ctx, "Button", look.clone());
-            ctx.tree
-                .set_behavior(id, Box::new(ButtonPanel { widget: w }));
+            ctx.tree.set_behavior(id, ButtonPanel { widget: w });
 
             let mut b2 = emButton::new(ctx, "Long Desc", look.clone());
             let mut desc = String::new();
@@ -1852,14 +1851,12 @@ impl TkTestPanel {
             }
             b2.SetDescription(&desc);
             let id = ctx.tree.create_child(gid, "b2", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ButtonPanel { widget: b2 }));
+            ctx.tree.set_behavior(id, ButtonPanel { widget: b2 });
 
             let mut b3 = emButton::new(ctx, "NoEOI", look.clone());
             b3.SetNoEOI(true);
             let id = ctx.tree.create_child(gid, "b3", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ButtonPanel { widget: b3 }));
+            ctx.tree.set_behavior(id, ButtonPanel { widget: b3 });
         }
 
         // 2. Check Buttons and Boxes — C++ :568-575.
@@ -1868,14 +1865,12 @@ impl TkTestPanel {
             for i in 1..=3 {
                 let id = ctx.tree.create_child(gid, &format!("c{i}"), None);
                 let w = emCheckButton::new(ctx, "Check Button", look.clone());
-                ctx.tree
-                    .set_behavior(id, Box::new(CheckButtonPanel { widget: w }));
+                ctx.tree.set_behavior(id, CheckButtonPanel { widget: w });
             }
             for i in 4..=6 {
                 let id = ctx.tree.create_child(gid, &format!("c{i}"), None);
                 let w = emCheckBox::new(ctx, "Check Box", look.clone());
-                ctx.tree
-                    .set_behavior(id, Box::new(CheckBoxPanel { widget: w }));
+                ctx.tree.set_behavior(id, CheckBoxPanel { widget: w });
             }
         }
 
@@ -1889,14 +1884,12 @@ impl TkTestPanel {
             for i in 1..=3usize {
                 let id = ctx.tree.create_child(gid, &format!("r{i}"), None);
                 let w = emRadioButton::new(ctx, "Radio Button", look.clone(), rg.clone(), i - 1);
-                ctx.tree
-                    .set_behavior(id, Box::new(RadioButtonPanel { widget: w }));
+                ctx.tree.set_behavior(id, RadioButtonPanel { widget: w });
             }
             for i in 4..=6usize {
                 let id = ctx.tree.create_child(gid, &format!("r{i}"), None);
                 let w = emRadioBox::new("Radio Box", look.clone(), rg.clone(), i - 4);
-                ctx.tree
-                    .set_behavior(id, Box::new(RadioBoxPanel { widget: w }));
+                ctx.tree.set_behavior(id, RadioBoxPanel { widget: w });
             }
         }
 
@@ -1910,10 +1903,10 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "tf1", None);
             ctx.tree.set_behavior(
                 id,
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     widget: tf1,
                     is_focused: false,
-                }),
+                },
             );
 
             let mut tf2 = emTextField::new(ctx, look.clone());
@@ -1924,10 +1917,10 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "tf2", None);
             ctx.tree.set_behavior(
                 id,
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     widget: tf2,
                     is_focused: false,
-                }),
+                },
             );
 
             let mut tf3 = emTextField::new(ctx, look.clone());
@@ -1939,10 +1932,10 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "tf3", None);
             ctx.tree.set_behavior(
                 id,
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     widget: tf3,
                     is_focused: false,
-                }),
+                },
             );
 
             let mut mltf1 = emTextField::new(ctx, look.clone());
@@ -1954,10 +1947,10 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "mltf1", None);
             ctx.tree.set_behavior(
                 id,
-                Box::new(TextFieldPanel {
+                TextFieldPanel {
                     widget: mltf1,
                     is_focused: false,
-                }),
+                },
             );
         }
 
@@ -1967,23 +1960,20 @@ impl TkTestPanel {
             let mut sf1 = emScalarField::new(ctx, 0.0, 10.0, look.clone());
             sf1.SetCaption("Read-Only");
             let id = ctx.tree.create_child(gid, "sf1", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf1 }));
+            ctx.tree.set_behavior(id, ScalarFieldPanel { widget: sf1 });
 
             let mut sf2 = emScalarField::new(ctx, 0.0, 10.0, look.clone());
             sf2.SetCaption("Editable");
             sf2.SetEditable(true);
             let id = ctx.tree.create_child(gid, "sf2", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf2 }));
+            ctx.tree.set_behavior(id, ScalarFieldPanel { widget: sf2 });
 
             let mut sf3 = emScalarField::new(ctx, -1000.0, 1000.0, look.clone());
             sf3.SetEditable(true);
             sf3.set_initial_value(0.0);
             sf3.SetScaleMarkIntervals(&[1000, 100, 10, 5, 1]);
             let id = ctx.tree.create_child(gid, "sf3", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf3 }));
+            ctx.tree.set_behavior(id, ScalarFieldPanel { widget: sf3 });
 
             // sf4 — Level — C++ :624-630.
             let mut sf4 = emScalarField::new(ctx, 1.0, 5.0, look.clone());
@@ -1993,8 +1983,7 @@ impl TkTestPanel {
             sf4.set_initial_value(3.0);
             sf4.SetTextOfValueFunc(Box::new(text_of_level_value));
             let id = ctx.tree.create_child(gid, "sf4", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf4 }));
+            ctx.tree.set_behavior(id, ScalarFieldPanel { widget: sf4 });
 
             // sf5 — Play Length — C++ :632-638.
             // AddWakeUpSignal(SFLen->GetValueSignal()) — signal stored and passed to sf6 wrapper.
@@ -2012,8 +2001,7 @@ impl TkTestPanel {
             // value before moving sf5 into the tree.
             let sf6_initial_max = sf5.GetValue();
             let id = ctx.tree.create_child(gid, "sf5", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf5 }));
+            ctx.tree.set_behavior(id, ScalarFieldPanel { widget: sf5 });
 
             // sf6 — Play Position — C++ :640-644. Dynamic max tracks sf5's value
             // via the wrapper's signal-driven Cycle (mirrors C++ TkTest::Cycle :786).
@@ -2028,11 +2016,11 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "sf6", None);
             ctx.tree.set_behavior(
                 id,
-                Box::new(ScalarFieldWithDynamicMax {
+                ScalarFieldWithDynamicMax {
                     widget: sf6,
                     sf5_len_signal,
                     signal_connected: false,
-                }),
+                },
             );
         }
 
@@ -2043,16 +2031,14 @@ impl TkTestPanel {
             cf1.SetCaption("Read-Only");
             cf1.set_initial_color(emColor::rgba(0xBB, 0x22, 0x22, 0xFF));
             let id = ctx.tree.create_child(gid, "cf1", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ColorFieldPanel { widget: cf1 }));
+            ctx.tree.set_behavior(id, ColorFieldPanel { widget: cf1 });
 
             let mut cf2 = emColorField::new(ctx, look.clone());
             cf2.SetCaption("Editable");
             cf2.SetEditable(true);
             cf2.set_initial_color(emColor::rgba(0x22, 0xBB, 0x22, 0xFF));
             let id = ctx.tree.create_child(gid, "cf2", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ColorFieldPanel { widget: cf2 }));
+            ctx.tree.set_behavior(id, ColorFieldPanel { widget: cf2 });
 
             let mut cf3 = emColorField::new(ctx, look.clone());
             cf3.SetCaption("Editable, Alpha Enabled");
@@ -2060,8 +2046,7 @@ impl TkTestPanel {
             cf3.set_initial_alpha_enabled(true);
             cf3.set_initial_color(emColor::rgba(0x22, 0x22, 0xBB, 0xFF));
             let id = ctx.tree.create_child(gid, "cf3", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ColorFieldPanel { widget: cf3 }));
+            ctx.tree.set_behavior(id, ColorFieldPanel { widget: cf3 });
         }
 
         // 7. Tunnels — C++ :662-680.
@@ -2072,36 +2057,35 @@ impl TkTestPanel {
             // t1: default depth, emButton content — C++ :666-667.
             let t1 = emTunnel::new(look.clone()).with_caption("Tunnel");
             let t1_id = ctx.tree.create_child(gid, "t1", None);
-            ctx.tree.set_behavior(t1_id, Box::new(t1));
+            ctx.tree.set_behavior(t1_id, t1);
             {
                 let btn = emButton::new(ctx, "End Of Tunnel", look.clone());
                 let e_id = ctx.tree.create_child(t1_id, "e", None);
-                ctx.tree
-                    .set_behavior(e_id, Box::new(ButtonPanel { widget: btn }));
+                ctx.tree.set_behavior(e_id, ButtonPanel { widget: btn });
             }
 
             // t2: SetDepth(30.0), emRasterGroup content — C++ :669-671.
             let mut t2 = emTunnel::new(look.clone()).with_caption("Deeper Tunnel");
             t2.SetDepth(30.0);
             let t2_id = ctx.tree.create_child(gid, "t2", None);
-            ctx.tree.set_behavior(t2_id, Box::new(t2));
+            ctx.tree.set_behavior(t2_id, t2);
             {
                 let mut rg = emRasterGroup::new();
                 rg.border.caption = "End Of Tunnel".to_string();
                 let e_id = ctx.tree.create_child(t2_id, "e", None);
-                ctx.tree.set_behavior(e_id, Box::new(rg));
+                ctx.tree.set_behavior(e_id, rg);
             }
 
             // t3: SetChildTallness(1.0), emRasterGroup content — C++ :673-675.
             let mut t3 = emTunnel::new(look.clone()).with_caption("Square End");
             t3.SetChildTallness(1.0);
             let t3_id = ctx.tree.create_child(gid, "t3", None);
-            ctx.tree.set_behavior(t3_id, Box::new(t3));
+            ctx.tree.set_behavior(t3_id, t3);
             {
                 let mut rg = emRasterGroup::new();
                 rg.border.caption = "End Of Tunnel".to_string();
                 let e_id = ctx.tree.create_child(t3_id, "e", None);
-                ctx.tree.set_behavior(e_id, Box::new(rg));
+                ctx.tree.set_behavior(e_id, rg);
             }
 
             // t4: SetChildTallness(1.0), SetDepth(0.0), emRasterGroup content — C++ :677-680.
@@ -2109,12 +2093,12 @@ impl TkTestPanel {
             t4.SetChildTallness(1.0);
             t4.SetDepth(0.0);
             let t4_id = ctx.tree.create_child(gid, "t4", None);
-            ctx.tree.set_behavior(t4_id, Box::new(t4));
+            ctx.tree.set_behavior(t4_id, t4);
             {
                 let mut rg = emRasterGroup::new();
                 rg.border.caption = "End Of Tunnel".to_string();
                 let e_id = ctx.tree.create_child(t4_id, "e", None);
-                ctx.tree.set_behavior(e_id, Box::new(rg));
+                ctx.tree.set_behavior(e_id, rg);
             }
         }
 
@@ -2126,8 +2110,7 @@ impl TkTestPanel {
             let mut lb1 = emListBox::new(ctx, look.clone());
             lb1.SetCaption("Empty");
             let id = ctx.tree.create_child(gid, "l1", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb1 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb1 });
 
             // l2: Single-Selection, 7 items, index 0 selected — C++ :688-692.
             let mut lb2 = emListBox::new(ctx, look.clone());
@@ -2137,8 +2120,7 @@ impl TkTestPanel {
             }
             lb2.SetSelectedIndex(0);
             let id = ctx.tree.create_child(gid, "l2", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb2 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb2 });
 
             // l3: Read-Only, 7 items, index 2 selected — C++ :694-699.
             let mut lb3 = emListBox::new(ctx, look.clone());
@@ -2149,8 +2131,7 @@ impl TkTestPanel {
             }
             lb3.SetSelectedIndex(2);
             let id = ctx.tree.create_child(gid, "l3", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb3 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb3 });
 
             // l4: Multi-Selection, 7 items, indices 1-4 selected — C++ :701-709.
             let mut lb4 = emListBox::new(ctx, look.clone());
@@ -2164,8 +2145,7 @@ impl TkTestPanel {
             lb4.Select(3, false);
             lb4.Select(4, false);
             let id = ctx.tree.create_child(gid, "l4", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb4 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb4 });
 
             // l5: Toggle-Selection, 7 items, indices 2,4 selected — C++ :711-717.
             let mut lb5 = emListBox::new(ctx, look.clone());
@@ -2177,8 +2157,7 @@ impl TkTestPanel {
             lb5.Select(2, false);
             lb5.Select(4, false);
             let id = ctx.tree.create_child(gid, "l5", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb5 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb5 });
 
             // l6: Single Column, 7 items, index 0 selected — C++ :719-724.
             let mut lb6 = emListBox::new(ctx, look.clone());
@@ -2189,8 +2168,7 @@ impl TkTestPanel {
             }
             lb6.SetSelectedIndex(0);
             let id = ctx.tree.create_child(gid, "l6", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb6 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb6 });
 
             // l7: Custom List Box — C++ :726-731, 985-1001.
             // C++ CustomListBox constructor (cpp:992–994) sets child tallness 0.4,
@@ -2221,8 +2199,7 @@ impl TkTestPanel {
                 },
             );
             let id = ctx.tree.create_child(gid, "l7", None);
-            ctx.tree
-                .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));
+            ctx.tree.set_behavior(id, ListBoxPanel { widget: lb7 });
         }
 
         // 9. Dialogs group — C++ emTestPanel.cpp:733-748.
@@ -2235,14 +2212,14 @@ impl TkTestPanel {
             dlgs_rg.border.SetBorderScaling(2.5);
             dlgs_rg.layout.fixed_columns = Some(1);
             let dlgs_id = ctx.tree.create_child(ctx.id, "dlgs", None);
-            ctx.tree.set_behavior(dlgs_id, Box::new(dlgs_rg));
+            ctx.tree.set_behavior(dlgs_id, dlgs_rg);
 
             // Inner raster layout "rl" — contains the checkboxes.
             // C++ :736 `rl=new emRasterLayout(grp,"rl"); rl->SetPrefChildTallness(0.1)`.
             let mut rl_beh = emRasterLayout::new();
             rl_beh.preferred_child_tallness = 0.1;
             let rl_id = ctx.tree.create_child(dlgs_id, "rl", None);
-            ctx.tree.set_behavior(rl_id, Box::new(rl_beh));
+            ctx.tree.set_behavior(rl_id, rl_beh);
 
             // Checkboxes — C++ :738-746.
             // Helper: create a checkbox in rl_id, wire on_check to a Cell<bool>.
@@ -2259,8 +2236,7 @@ impl TkTestPanel {
                     state.set(checked);
                 }));
                 let id = ctx.tree.create_child(rl_id, name, None);
-                ctx.tree
-                    .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
+                ctx.tree.set_behavior(id, CheckBoxPanel { widget: cb });
             };
 
             make_cb(ctx, "tl", "Top-Level", false, Rc::clone(&self.cb_toplev));
@@ -2305,8 +2281,7 @@ impl TkTestPanel {
             let bt = emButton::new(ctx, "Create Test Dialog", look.clone());
             self.btn_create_dlg_signal = Some(bt.click_signal);
             let bt_id = ctx.tree.create_child(dlgs_id, "bt", None);
-            ctx.tree
-                .set_behavior(bt_id, Box::new(ButtonPanel { widget: bt }));
+            ctx.tree.set_behavior(bt_id, ButtonPanel { widget: bt });
         }
 
         // 10. File choosers — C++ emTestPanel.cpp:750-768.
@@ -2319,7 +2294,7 @@ impl TkTestPanel {
             fc_rg.border.SetBorderScaling(2.5);
             fc_rg.layout.preferred_child_tallness = 0.3;
             let fc_id = ctx.tree.create_child(ctx.id, "fileChoosers", None);
-            ctx.tree.set_behavior(fc_id, Box::new(fc_rg));
+            ctx.tree.set_behavior(fc_id, fc_rg);
 
             // emFileSelectionBox "l8" with filters — C++ :751-756.
             let mut fsb = emFileSelectionBox::new(ctx, "File Selection Box");
@@ -2329,28 +2304,28 @@ impl TkTestPanel {
                 "HTML Files (*.htm *.html)".to_string(),
             ]);
             let fsb_id = ctx.tree.create_child(fc_id, "l8", None);
-            ctx.tree.set_behavior(fsb_id, Box::new(fsb));
+            ctx.tree.set_behavior(fsb_id, fsb);
 
             // Open button — C++ :757-758.
             let bt_open = emButton::new(ctx, "Open...", look.clone());
             self.btn_open_file_signal = Some(bt_open.click_signal);
             let bt_open_id = ctx.tree.create_child(fc_id, "openFile", None);
             ctx.tree
-                .set_behavior(bt_open_id, Box::new(ButtonPanel { widget: bt_open }));
+                .set_behavior(bt_open_id, ButtonPanel { widget: bt_open });
 
             // Open Multi button — C++ :759-760.
             let bt_opens = emButton::new(ctx, "Open Multi, Allow Dir...", look.clone());
             self.btn_open_files_signal = Some(bt_opens.click_signal);
             let bt_opens_id = ctx.tree.create_child(fc_id, "openFiles", None);
             ctx.tree
-                .set_behavior(bt_opens_id, Box::new(ButtonPanel { widget: bt_opens }));
+                .set_behavior(bt_opens_id, ButtonPanel { widget: bt_opens });
 
             // Save As button — C++ :761-762.
             let bt_save = emButton::new(ctx, "Save As...", look.clone());
             self.btn_save_file_signal = Some(bt_save.click_signal);
             let bt_save_id = ctx.tree.create_child(fc_id, "saveFile", None);
             ctx.tree
-                .set_behavior(bt_save_id, Box::new(ButtonPanel { widget: bt_save }));
+                .set_behavior(bt_save_id, ButtonPanel { widget: bt_save });
         }
     }
 }
@@ -2671,7 +2646,7 @@ impl PanelBehavior for PolyDrawPanel {
         // C++: controls = new emRasterLayout(this,"Controls"); controls->SetPrefChildTallness(0.6)
         let mut controls_layout = emRasterLayout::new();
         controls_layout.preferred_child_tallness = 0.6;
-        let controls_id = ctx.create_child_with("Controls", Box::new(controls_layout));
+        let controls_id = ctx.create_child_with("Controls", controls_layout);
 
         // ── general sub-group ────────────────────────────────────────────────
         // C++: general = new emLinearGroup(controls,"general","General");
@@ -2681,7 +2656,7 @@ impl PanelBehavior for PolyDrawPanel {
         general_grp.border.SetBorderScaling(2.0);
         general_grp.border.caption = "General".to_string();
         let general_id = ctx.tree.create_child(controls_id, "general", None);
-        ctx.tree.set_behavior(general_id, Box::new(general_grp));
+        ctx.tree.set_behavior(general_id, general_grp);
 
         // ── stroke sub-group ─────────────────────────────────────────────────
         // C++: stroke = new emLinearGroup(controls,"stroke","Stroke");
@@ -2691,7 +2666,7 @@ impl PanelBehavior for PolyDrawPanel {
         stroke_grp.border.SetBorderScaling(2.0);
         stroke_grp.border.caption = "Stroke".to_string();
         let stroke_id = ctx.tree.create_child(controls_id, "stroke", None);
-        ctx.tree.set_behavior(stroke_id, Box::new(stroke_grp));
+        ctx.tree.set_behavior(stroke_id, stroke_grp);
 
         // ── strokeStart sub-group ────────────────────────────────────────────
         // C++: strokeStart = new emLinearGroup(controls,"strokeStart","Stroke Start");
@@ -2700,8 +2675,7 @@ impl PanelBehavior for PolyDrawPanel {
         stroke_start_grp.border.SetBorderScaling(2.0);
         stroke_start_grp.border.caption = "Stroke Start".to_string();
         let stroke_start_id = ctx.tree.create_child(controls_id, "strokeStart", None);
-        ctx.tree
-            .set_behavior(stroke_start_id, Box::new(stroke_start_grp));
+        ctx.tree.set_behavior(stroke_start_id, stroke_start_grp);
 
         // ── strokeEnd sub-group ──────────────────────────────────────────────
         // C++: strokeEnd = new emLinearGroup(controls,"strokeEnd","Stroke End");
@@ -2710,8 +2684,7 @@ impl PanelBehavior for PolyDrawPanel {
         stroke_end_grp.border.SetBorderScaling(2.0);
         stroke_end_grp.border.caption = "Stroke End".to_string();
         let stroke_end_id = ctx.tree.create_child(controls_id, "strokeEnd", None);
-        ctx.tree
-            .set_behavior(stroke_end_id, Box::new(stroke_end_grp));
+        ctx.tree.set_behavior(stroke_end_id, stroke_end_grp);
 
         // ════════════════════════════════════════════════════════════════════
         // general children
@@ -2730,7 +2703,7 @@ impl PanelBehavior for PolyDrawPanel {
             rg_panel.border.caption = "Method".to_string();
             rg_panel.layout.preferred_child_tallness = 0.07;
             let method_id = ctx.tree.create_child(general_id, "Method", None);
-            ctx.tree.set_behavior(method_id, Box::new(rg_panel));
+            ctx.tree.set_behavior(method_id, rg_panel);
             // Set child 0 (Method) weight to 2.0 on general — mirrors C++ general->SetChildWeight(0,2.0).
             // The constraint is set after method_id is known, using with_behavior_as.
             ctx.tree
@@ -2766,8 +2739,7 @@ impl PanelBehavior for PolyDrawPanel {
             for (i, label) in labels.iter().enumerate() {
                 let rb_id = ctx.tree.create_child(method_id, &i.to_string(), None);
                 let w = emRadioBox::new(label, look.clone(), type_rg.clone(), i);
-                ctx.tree
-                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+                ctx.tree.set_behavior(rb_id, RadioBoxPanel { widget: w });
             }
             // SetCheckIndex(0) — select first option
             type_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
@@ -2777,8 +2749,7 @@ impl PanelBehavior for PolyDrawPanel {
         // C++: ll=new emLinearLayout(general,"ll"); ll->SetHorizontal()
         //      VertexCount=new emTextField(ll,...); FillColor=new emColorField(ll,...)
         let ll_id = ctx.tree.create_child(general_id, "ll", None);
-        ctx.tree
-            .set_behavior(ll_id, Box::new(emLinearLayout::horizontal()));
+        ctx.tree.set_behavior(ll_id, emLinearLayout::horizontal());
 
         // VertexCount
         // C++: VertexCount->SetEditable(); VertexCount->SetText("9")
@@ -2792,10 +2763,10 @@ impl PanelBehavior for PolyDrawPanel {
         let vertex_count_signal = vc.text_signal;
         ctx.tree.set_behavior(
             vertex_count_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: vc,
                 is_focused: false,
-            }),
+            },
         );
 
         // FillColor
@@ -2809,13 +2780,12 @@ impl PanelBehavior for PolyDrawPanel {
         fc.set_initial_color(emColor::WHITE);
         let fill_color_signal = fc.color_signal;
         ctx.tree
-            .set_behavior(fill_color_id, Box::new(ColorFieldPanel { widget: fc }));
+            .set_behavior(fill_color_id, ColorFieldPanel { widget: fc });
 
         // ── ll2 (StrokeWidth + WithCanvasColor row) ───────────────────────────
         // C++: ll=new emLinearLayout(general,"ll2"); ll->SetHorizontal()
         let ll2_id = ctx.tree.create_child(general_id, "ll2", None);
-        ctx.tree
-            .set_behavior(ll2_id, Box::new(emLinearLayout::horizontal()));
+        ctx.tree.set_behavior(ll2_id, emLinearLayout::horizontal());
 
         // StrokeWidth
         // C++: StrokeWidth->SetEditable(); StrokeWidth->SetText("0.01")
@@ -2828,10 +2798,10 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_width_signal = sw.text_signal;
         ctx.tree.set_behavior(
             stroke_width_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: sw,
                 is_focused: false,
-            }),
+            },
         );
 
         // WithCanvasColor
@@ -2841,10 +2811,8 @@ impl PanelBehavior for PolyDrawPanel {
         let mut wcc = emCheckBox::new(ctx, "With Canvas Color", look.clone());
         wcc.SetChecked(false, ctx);
         let with_canvas_color_signal = wcc.check_signal;
-        ctx.tree.set_behavior(
-            with_canvas_color_id,
-            Box::new(CheckBoxPanel { widget: wcc }),
-        );
+        ctx.tree
+            .set_behavior(with_canvas_color_id, CheckBoxPanel { widget: wcc });
 
         // ════════════════════════════════════════════════════════════════════
         // stroke children
@@ -2862,7 +2830,7 @@ impl PanelBehavior for PolyDrawPanel {
         sc.set_initial_color(emColor::BLACK);
         let stroke_color_signal = sc.color_signal;
         ctx.tree
-            .set_behavior(stroke_color_id, Box::new(ColorFieldPanel { widget: sc }));
+            .set_behavior(stroke_color_id, ColorFieldPanel { widget: sc });
 
         // StrokeRounded
         // C++: StrokeRounded=new emCheckBox(stroke,"StrokeRounded","Rounded")
@@ -2871,7 +2839,7 @@ impl PanelBehavior for PolyDrawPanel {
         let sr = emCheckBox::new(ctx, "Rounded", look.clone());
         let stroke_rounded_signal = sr.check_signal;
         ctx.tree
-            .set_behavior(stroke_rounded_id, Box::new(CheckBoxPanel { widget: sr }));
+            .set_behavior(stroke_rounded_id, CheckBoxPanel { widget: sr });
 
         // StrokeDashType RadioGroup
         // C++: StrokeDashType=new emRadioButton::RasterGroup(stroke,"StrokeDashType","Dash Type")
@@ -2885,7 +2853,7 @@ impl PanelBehavior for PolyDrawPanel {
             rg_panel.border.caption = "Dash Type".to_string();
             rg_panel.layout.preferred_child_tallness = 0.08;
             let dash_type_id = ctx.tree.create_child(stroke_id, "StrokeDashType", None);
-            ctx.tree.set_behavior(dash_type_id, Box::new(rg_panel));
+            ctx.tree.set_behavior(dash_type_id, rg_panel);
             // C++ stroke->SetChildWeight(2,2.0) — StrokeDashType is child 2 of stroke.
             ctx.tree
                 .with_behavior_as::<emLinearGroup, _>(stroke_id, |g| {
@@ -2901,8 +2869,7 @@ impl PanelBehavior for PolyDrawPanel {
             for (i, label) in dash_labels.iter().enumerate() {
                 let rb_id = ctx.tree.create_child(dash_type_id, &i.to_string(), None);
                 let w = emRadioBox::new(label, look.clone(), stroke_dash_rg.clone(), i);
-                ctx.tree
-                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+                ctx.tree.set_behavior(rb_id, RadioBoxPanel { widget: w });
             }
             stroke_dash_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
             self.stroke_dash_type_id = Some(dash_type_id);
@@ -2912,7 +2879,7 @@ impl PanelBehavior for PolyDrawPanel {
         // C++: ll=new emLinearLayout(stroke,"ll"); ll->SetHorizontal()
         let stroke_ll_id = ctx.tree.create_child(stroke_id, "ll", None);
         ctx.tree
-            .set_behavior(stroke_ll_id, Box::new(emLinearLayout::horizontal()));
+            .set_behavior(stroke_ll_id, emLinearLayout::horizontal());
 
         // DashLengthFactor
         let dash_length_factor_id = ctx
@@ -2925,10 +2892,10 @@ impl PanelBehavior for PolyDrawPanel {
         let dash_length_factor_signal = dlf.text_signal;
         ctx.tree.set_behavior(
             dash_length_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: dlf,
                 is_focused: false,
-            }),
+            },
         );
 
         // GapLengthFactor
@@ -2940,10 +2907,10 @@ impl PanelBehavior for PolyDrawPanel {
         let gap_length_factor_signal = glf.text_signal;
         ctx.tree.set_behavior(
             gap_length_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: glf,
                 is_focused: false,
-            }),
+            },
         );
 
         // ════════════════════════════════════════════════════════════════════
@@ -2965,7 +2932,7 @@ impl PanelBehavior for PolyDrawPanel {
             let start_type_id = ctx
                 .tree
                 .create_child(stroke_start_id, "StrokeStartType", None);
-            ctx.tree.set_behavior(start_type_id, Box::new(rg_panel));
+            ctx.tree.set_behavior(start_type_id, rg_panel);
             // C++ strokeStart->SetChildWeight(0,2.0) — StrokeStartType is child 0.
             ctx.tree
                 .with_behavior_as::<emLinearGroup, _>(stroke_start_id, |g| {
@@ -2999,8 +2966,7 @@ impl PanelBehavior for PolyDrawPanel {
             for (i, label) in end_labels.iter().enumerate() {
                 let rb_id = ctx.tree.create_child(start_type_id, &i.to_string(), None);
                 let w = emRadioBox::new(label, look.clone(), stroke_start_rg.clone(), i);
-                ctx.tree
-                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+                ctx.tree.set_behavior(rb_id, RadioBoxPanel { widget: w });
             }
             stroke_start_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
             self.stroke_start_type_id = Some(start_type_id);
@@ -3019,13 +2985,13 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_start_inner_color_signal = ssic.color_signal;
         ctx.tree.set_behavior(
             stroke_start_inner_color_id,
-            Box::new(ColorFieldPanel { widget: ssic }),
+            ColorFieldPanel { widget: ssic },
         );
 
         // ll (StrokeStartWidthFactor + StrokeStartLengthFactor row)
         let stroke_start_ll_id = ctx.tree.create_child(stroke_start_id, "ll", None);
         ctx.tree
-            .set_behavior(stroke_start_ll_id, Box::new(emLinearLayout::horizontal()));
+            .set_behavior(stroke_start_ll_id, emLinearLayout::horizontal());
 
         // StrokeStartWidthFactor
         let stroke_start_width_factor_id =
@@ -3038,10 +3004,10 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_start_width_factor_signal = sswf.text_signal;
         ctx.tree.set_behavior(
             stroke_start_width_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: sswf,
                 is_focused: false,
-            }),
+            },
         );
 
         // StrokeStartLengthFactor
@@ -3055,10 +3021,10 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_start_length_factor_signal = sslf.text_signal;
         ctx.tree.set_behavior(
             stroke_start_length_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: sslf,
                 is_focused: false,
-            }),
+            },
         );
 
         // ════════════════════════════════════════════════════════════════════
@@ -3075,7 +3041,7 @@ impl PanelBehavior for PolyDrawPanel {
             rg_panel.border.caption = "Type".to_string();
             rg_panel.layout.preferred_child_tallness = 0.08;
             let end_type_id = ctx.tree.create_child(stroke_end_id, "StrokeEndType", None);
-            ctx.tree.set_behavior(end_type_id, Box::new(rg_panel));
+            ctx.tree.set_behavior(end_type_id, rg_panel);
             // C++ strokeEnd->SetChildWeight(0,2.0) — StrokeEndType is child 0.
             ctx.tree
                 .with_behavior_as::<emLinearGroup, _>(stroke_end_id, |g| {
@@ -3109,8 +3075,7 @@ impl PanelBehavior for PolyDrawPanel {
             for (i, label) in end_labels.iter().enumerate() {
                 let rb_id = ctx.tree.create_child(end_type_id, &i.to_string(), None);
                 let w = emRadioBox::new(label, look.clone(), stroke_end_rg.clone(), i);
-                ctx.tree
-                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+                ctx.tree.set_behavior(rb_id, RadioBoxPanel { widget: w });
             }
             stroke_end_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
             self.stroke_end_type_id = Some(end_type_id);
@@ -3126,15 +3091,13 @@ impl PanelBehavior for PolyDrawPanel {
         seic.set_initial_alpha_enabled(true);
         seic.set_initial_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
         let stroke_end_inner_color_signal = seic.color_signal;
-        ctx.tree.set_behavior(
-            stroke_end_inner_color_id,
-            Box::new(ColorFieldPanel { widget: seic }),
-        );
+        ctx.tree
+            .set_behavior(stroke_end_inner_color_id, ColorFieldPanel { widget: seic });
 
         // ll (StrokeEndWidthFactor + StrokeEndLengthFactor row)
         let stroke_end_ll_id = ctx.tree.create_child(stroke_end_id, "ll", None);
         ctx.tree
-            .set_behavior(stroke_end_ll_id, Box::new(emLinearLayout::horizontal()));
+            .set_behavior(stroke_end_ll_id, emLinearLayout::horizontal());
 
         // StrokeEndWidthFactor
         let stroke_end_width_factor_id =
@@ -3147,10 +3110,10 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_end_width_factor_signal = sewf.text_signal;
         ctx.tree.set_behavior(
             stroke_end_width_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: sewf,
                 is_focused: false,
-            }),
+            },
         );
 
         // StrokeEndLengthFactor
@@ -3164,15 +3127,15 @@ impl PanelBehavior for PolyDrawPanel {
         let stroke_end_length_factor_signal = self_.text_signal;
         ctx.tree.set_behavior(
             stroke_end_length_factor_id,
-            Box::new(TextFieldPanel {
+            TextFieldPanel {
                 widget: self_,
                 is_focused: false,
-            }),
+            },
         );
 
         // ── CanvasPanel ──────────────────────────────────────────────────────
         // C++: Canvas = new CanvasPanel(this,"CanvasPanel")
-        let canvas_id = ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+        let canvas_id = ctx.create_child_with("CanvasPanel", CanvasPanel::new());
         self.canvas_id = Some(canvas_id);
 
         // ── Wire signal fields and RadioGroup handles ────────────────────────
@@ -4058,7 +4021,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(TestPanel::new(ctx.clone(), DEFAULT_BG)));
+        tree.set_behavior(root, TestPanel::new(ctx.clone(), DEFAULT_BG));
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4086,7 +4049,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(TkTestGrpPanel::new()));
+        tree.set_behavior(root, TkTestGrpPanel::new());
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4103,7 +4066,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.set_behavior(root, PolyDrawPanel::new());
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4132,7 +4095,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(TkTestGrpPanel::new()));
+        tree.set_behavior(root, TkTestGrpPanel::new());
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4155,7 +4118,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.set_behavior(root, PolyDrawPanel::new());
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4248,7 +4211,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(TestPanel::new(ctx.clone(), DEFAULT_BG)));
+        tree.set_behavior(root, TestPanel::new(ctx.clone(), DEFAULT_BG));
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
@@ -4271,7 +4234,7 @@ mod tests {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.set_behavior(root, PolyDrawPanel::new());
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);

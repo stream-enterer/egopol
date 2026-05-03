@@ -131,23 +131,23 @@ fn vir_file_state_signal_fires_on_set_file_model_and_cycle_change() {
     let vir_sig: Rc<Cell<SignalId>> = Rc::new(Cell::new(SignalId::null()));
 
     // Register observer first so its EngineId is available to the driver.
-    let observer = Box::new(VirStateObserver {
+    let observer = VirStateObserver {
         signal: vir_sig.clone(),
         fired: fired.clone(),
-    });
+    };
     let obs_eid = sched.register_engine(observer, Priority::Low, PanelScope::Framework);
     sched.wake_up(obs_eid);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("b004_fp");
-    let driver = Box::new(FilePanelB004Driver {
+    let driver = FilePanelB004Driver {
         panel: panel_rc.clone(),
         tree,
         root,
         observer_eid: obs_eid,
         cycles: 0,
         observer_connected: false,
-    });
+    };
     let driver_eid = sched.register_engine(driver, Priority::Low, PanelScope::Framework);
     sched.wake_up(driver_eid);
 
@@ -245,12 +245,12 @@ fn image_panel_refreshes_current_image_after_load() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("b004_img_panel");
-    let engine = Box::new(ImagePanelB004Engine {
+    let engine = ImagePanelB004Engine {
         panel: panel_rc.clone(),
         tree,
         root,
         cycles: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 

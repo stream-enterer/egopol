@@ -658,7 +658,9 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
             self.alt as usize,
         );
         // C++ uses name "" for the content panel (matches identity path).
-        let child_id = ctx.create_child_with("", behavior);
+        // Pre-erased: behavior comes from emFpPluginList::CreateFilePanelWithStat
+        // (cdylib ABI, plugin-path). Concrete type is not recoverable here.
+        let child_id = ctx.create_child_with_dyn("", behavior, "<dyn PanelBehavior>");
         // Register for cycling so the file panel drives its model loading.
         ctx.wake_up_panel(child_id);
         self.content_panel = Some(child_id);
@@ -754,7 +756,7 @@ impl emVirtualCosmosPanel {
         if self.background_panel.is_none() {
             let seed: u32 = 0x7f3a_19c0;
             let bg = crate::emStarFieldPanel::emStarFieldPanel::new(50, seed);
-            let child_id = ctx.create_child_with("_StarField", Box::new(bg));
+            let child_id = ctx.create_child_with("_StarField", bg);
             ctx.tree.set_focusable(child_id, false);
             ctx.tree
                 .SetAutoplayHandling(child_id, AutoplayHandlingFlags::CUTOFF);
@@ -817,7 +819,7 @@ impl emVirtualCosmosPanel {
             } else {
                 let mut item_panel = emVirtualCosmosItemPanel::new(Rc::clone(&self.ctx));
                 item_panel.SetItemRec(rec.clone());
-                ctx.create_child_with(&child_name, Box::new(item_panel))
+                ctx.create_child_with(&child_name, item_panel)
             };
 
             new_item_panels.push((rec.Name.clone(), child_id));
@@ -1361,10 +1363,7 @@ mod tests {
 
         let mut tree = emcore::emPanelTree::PanelTree::new();
         let root_id = tree.create_root_deferred_view("vc_575");
-        tree.set_behavior(
-            root_id,
-            Box::new(emVirtualCosmosPanel::new(Rc::clone(&root_ctx))),
-        );
+        tree.set_behavior(root_id, emVirtualCosmosPanel::new(Rc::clone(&root_ctx)));
         tree.set_panel_view(root_id);
         tree.register_engine_for_public(root_id, Some(&mut sched));
         let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");

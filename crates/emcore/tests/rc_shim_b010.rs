@@ -189,13 +189,13 @@ fn row_80_reset_button_cycle_restores_defaults() {
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -374,13 +374,13 @@ fn run_mouse_misc_checkbox_test(
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -608,13 +608,13 @@ fn row_563_mem_scalar_propagates_to_config() {
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -773,13 +773,13 @@ fn build_cpu_group_harness(
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -1066,13 +1066,13 @@ fn build_perf_group_harness(
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -1376,13 +1376,13 @@ mod fsb_harness {
             }
         }
 
-        let engine = Box::new(FsbEngine {
+        let engine = FsbEngine {
             fsb: Rc::clone(&fsb_rc),
             tree: Rc::clone(&tree_rc),
             root,
             children_built: false,
             cycles_run: 0,
-        });
+        };
         let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
         sched.wake_up(eid);
 
@@ -1698,13 +1698,13 @@ fn row_550_filter_selection_updates_selected_filter_index() {
         }
     }
 
-    let engine = Box::new(FsbEngine {
+    let engine = FsbEngine {
         fsb: Rc::clone(&fsb_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 

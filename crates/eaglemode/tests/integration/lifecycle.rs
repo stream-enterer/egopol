@@ -99,11 +99,9 @@ fn remove_panel_with_engine() {
     let child = h.add_panel(root, "child");
 
     // Register an engine associated with this panel
-    let eng = h.scheduler.register_engine(
-        Box::new(DummyEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eng = h
+        .scheduler
+        .register_engine(DummyEngine, Priority::Medium, PanelScope::Framework);
     h.scheduler.wake_up(eng);
     h.tick();
 

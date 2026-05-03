@@ -121,12 +121,24 @@ impl PanelBehavior for TextFieldPanel {
             .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
-    fn Cycle(&mut self, _ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx) -> bool {
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx) -> bool {
         // Mirrors C++ emTextField::Cycle (emTextField.cpp:306-340):
         // - Read focus, advance blink state.
         // - On blink-state flip, InvalidatePainting (whole panel).
         // - Return busy=true while focused so the engine stays awake.
         let r = self.text_field.cycle_blink(self.is_focused);
+        {
+            let line = format!(
+                "BLINK_CYCLE|wall_us={}|engine_id={:?}|panel_id={:?}|focused={}|flipped={}|busy={}\n",
+                crate::emInstr::wall_us(),
+                ectx.engine_id,
+                pctx.id,
+                if self.is_focused { "t" } else { "f" },
+                if r.flipped { "t" } else { "f" },
+                if r.busy { "t" } else { "f" },
+            );
+            crate::emInstr::write_line(&line);
+        }
         if r.flipped {
             pctx.request_invalidate_self();
         }

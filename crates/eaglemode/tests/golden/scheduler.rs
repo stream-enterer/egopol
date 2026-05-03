@@ -105,11 +105,11 @@ fn signal_abort() {
     let sig = sched.create_signal();
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "target",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -138,11 +138,11 @@ fn timer_oneshot() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "timer_recv",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -175,11 +175,11 @@ fn timer_periodic() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "periodic",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -216,11 +216,11 @@ fn timer_cancel() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "no_fire",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -271,11 +271,11 @@ fn engine_basic() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "basic",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -298,29 +298,29 @@ fn engine_priority() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let vl = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "very_low",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::VeryLow,
         PanelScope::Framework,
     );
     let med = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "medium",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
     let vh = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "very_high",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::VeryHigh,
         PanelScope::Framework,
     );
@@ -345,11 +345,11 @@ fn engine_wake_sleep() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "ws",
             log: Rc::clone(&log),
             stay_awake: true, // stays awake each Cycle
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -407,14 +407,14 @@ fn engine_multi_signal() {
     }
 
     let eng = sched.register_engine(
-        Box::new(MultiSigEngine {
+        MultiSigEngine {
             sig_a,
             sig_b,
             sig_c,
             a_seen: Rc::clone(&a_seen),
             b_seen: Rc::clone(&b_seen),
             c_seen: Rc::clone(&c_seen),
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );

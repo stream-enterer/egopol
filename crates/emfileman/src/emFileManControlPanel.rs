@@ -908,7 +908,7 @@ mod tests {
             emFileManControlPanel::new(&mut ic, ctx)
         };
         let dummy_eid = h.scheduler.register_engine(
-            Box::new(NoopEngineForTest),
+            NoopEngineForTest,
             emcore::emEngine::Priority::Medium,
             emcore::emPanelScope::PanelScope::Framework,
         );

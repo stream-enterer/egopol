@@ -422,11 +422,9 @@ mod tests {
     #[test]
     fn dialog_cycle_finishes_immediately_when_no_stocks() {
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
         // Pre-allocate the fetcher's change_signal and fire it so the dialog's
@@ -455,11 +453,9 @@ mod tests {
     #[test]
     fn dialog_cycle_returns_true_when_in_progress() {
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
         {
@@ -484,11 +480,9 @@ mod tests {
     #[test]
     fn dialog_cycle_captures_error_on_finish() {
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
         {
@@ -516,11 +510,9 @@ mod tests {
         // observable improvement over the pre-fix per-frame poll and
         // matches C++ cpp:73-86.
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
         let active = {

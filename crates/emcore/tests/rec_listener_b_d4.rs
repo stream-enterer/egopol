@@ -293,14 +293,14 @@ fn scalar_field_panel_self_updates_on_field_change() {
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
         engine_id_out: Rc::clone(&engine_id_cell),
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -471,13 +471,13 @@ fn mouse_misc_group_update_output_on_config_change() {
         }
     }
 
-    let engine = Box::new(PanelEngine {
+    let engine = PanelEngine {
         panel: Rc::clone(&panel_rc),
         tree: Rc::clone(&tree_rc),
         root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(eid);
 
@@ -662,13 +662,13 @@ fn reset_button_updates_in_place_no_rebuild() {
         }
     }
 
-    let kb_engine = Box::new(KbEngine {
+    let kb_engine = KbEngine {
         panel: Rc::clone(&kb_panel_rc),
         tree: Rc::clone(&kb_tree_rc),
         root: kb_root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let kb_eid = sched.register_engine(kb_engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(kb_eid);
 
@@ -727,13 +727,13 @@ fn reset_button_updates_in_place_no_rebuild() {
         }
     }
 
-    let bt_engine = Box::new(BtEngine {
+    let bt_engine = BtEngine {
         panel: Rc::clone(&bt_panel_rc),
         tree: Rc::clone(&bt_tree_rc),
         root: bt_root,
         children_built: false,
         cycles_run: 0,
-    });
+    };
     let bt_eid = sched.register_engine(bt_engine, Priority::Low, PanelScope::Framework);
     sched.wake_up(bt_eid);
 

@@ -155,11 +155,7 @@ fn build_labeled_tree(h: &mut TestHarness, log: &Rc<RefCell<Vec<String>>>) -> La
     let root_acc = Rc::new(RefCell::new(NoticeFlags::empty()));
     h.tree.set_behavior(
         root,
-        Box::new(LabeledNoticeBehavior::new(
-            "root",
-            log.clone(),
-            root_acc.clone(),
-        )),
+        LabeledNoticeBehavior::new("root", log.clone(), root_acc.clone()),
     );
 
     let branch_a_acc = Rc::new(RefCell::new(NoticeFlags::empty()));

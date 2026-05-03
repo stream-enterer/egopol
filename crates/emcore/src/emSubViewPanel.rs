@@ -713,7 +713,7 @@ mod subview_dispatch_tests {
         sched.attach_first_cycle_probe(child_eid, Rc::clone(&probe));
 
         // Install emSubViewPanel as behavior on the outer slot.
-        outer_tree.set_behavior(outer_panel_id, Box::new(svp));
+        outer_tree.set_behavior(outer_panel_id, svp);
 
         // Wrap outer tree in a headless emWindow keyed by wid.
         // headless_emwindow_with_tree returns (WindowId::dummy(), win) which
@@ -934,7 +934,7 @@ mod sp8_tests {
         // Harness supplies the EngineCtx scaffolding for the Cycle call.
         let mut th = crate::test_view_harness::TestViewHarness::new();
         let dummy_eid = th.scheduler.register_engine(
-            Box::new(NoopEngine),
+            NoopEngine,
             crate::emEngine::Priority::Medium,
             crate::emPanelScope::PanelScope::Framework,
         );

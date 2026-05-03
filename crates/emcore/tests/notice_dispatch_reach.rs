@@ -64,7 +64,7 @@ fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
     let root = tree.create_root_deferred_view("root");
     // LayoutChildren requires at least one child.
     let _child = tree.create_child(root, "child", None);
-    tree.set_behavior(root, Box::new(ReachProbe(log.clone())));
+    tree.set_behavior(root, ReachProbe(log.clone()));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
@@ -135,7 +135,7 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
-    tree.set_behavior(root, Box::new(ReachProbe(log.clone())));
+    tree.set_behavior(root, ReachProbe(log.clone()));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();
@@ -186,7 +186,7 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase3() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
-    tree.set_behavior(root, Box::new(ReachProbe(log.clone())));
+    tree.set_behavior(root, ReachProbe(log.clone()));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     let mut sched = emcore::emScheduler::EngineScheduler::new();

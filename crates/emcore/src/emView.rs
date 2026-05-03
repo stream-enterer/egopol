@@ -3378,14 +3378,14 @@ impl emView {
         scope: crate::emPanelScope::PanelScope,
     ) {
         let engine_id = ctx.scheduler.register_engine(
-            Box::new(UpdateEngineClass::new(scope)),
+            UpdateEngineClass::new(scope),
             super::emEngine::Priority::High,
             scope,
         );
         let eoi_signal = ctx.scheduler.create_signal();
         // C++ emViewAnimator base ctor sets HIGH_PRIORITY (emViewAnimator.cpp:39).
         let visiting_va_engine_id = ctx.scheduler.register_engine(
-            Box::new(VisitingVAEngineClass::new(scope)),
+            VisitingVAEngineClass::new(scope),
             super::emEngine::Priority::High,
             scope,
         );
@@ -3744,7 +3744,7 @@ impl emView {
             ctx.remove_engine(old);
         }
         let eng_id = ctx.register_engine(
-            Box::new(EOIEngineClass::new(sig)),
+            EOIEngineClass::new(sig),
             super::emEngine::Priority::High,
             crate::emPanelScope::PanelScope::Framework,
         );
@@ -4173,6 +4173,22 @@ impl emView {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = tree.take_behavior(id) {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
+                // Phase A 7-LOOP-CHAIN: NOTICE per delivered Notice.
+                // Fetch type name before ctx mutably borrows tree.
+                let recipient_type_owned = tree
+                    .behavior_type_name(id)
+                    .unwrap_or("<unknown>")
+                    .to_string();
+                {
+                    let line = format!(
+                        "NOTICE|wall_us={}|recipient_panel_id={:?}|recipient_type={}|flags={:#x}\n",
+                        crate::emInstr::wall_us(),
+                        id,
+                        recipient_type_owned,
+                        flags.bits(),
+                    );
+                    crate::emInstr::write_line(&line);
+                }
                 let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                     tree,
                     id,
@@ -6969,10 +6985,10 @@ mod tests {
         // Register a listener that records when EOISignal fires.
         let fired = Rc::new(std::cell::Cell::new(false));
         let listener_id = sched.borrow_mut().register_engine(
-            Box::new(ListenEngine {
+            ListenEngine {
                 watched: eoi,
                 fired: Rc::clone(&fired),
-            }),
+            },
             Priority::Low,
             crate::emPanelScope::PanelScope::Framework,
         );
@@ -7409,9 +7425,9 @@ mod tests {
         }
         let cycled = Rc::new(RefCell::new(false));
         let recv_id = sched.borrow_mut().register_engine(
-            Box::new(Receiver {
+            Receiver {
                 cycled: Rc::clone(&cycled),
-            }),
+            },
             Priority::Low,
             crate::emPanelScope::PanelScope::Framework,
         );
@@ -8199,9 +8215,9 @@ mod tests {
         fn paint_bumps_counter_and_records_frame() {
             let mut ts = TestSched::new();
             let (mut tree, root, child1, child2) = setup_tree();
-            tree.set_behavior(root, Box::new(NoopBehavior));
-            tree.set_behavior(child1, Box::new(NoopBehavior));
-            tree.set_behavior(child2, Box::new(NoopBehavior));
+            tree.set_behavior(root, NoopBehavior);
+            tree.set_behavior(child1, NoopBehavior);
+            tree.set_behavior(child2, NoopBehavior);
 
             let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
             // Layout + SVP selection so paint_one_panel is actually reached.

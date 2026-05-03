@@ -88,7 +88,26 @@ impl EngineCtxInner {
 
     /// Wake up an engine, moving it to the current time slice if needed.
     /// Matches C++ `WakeUpImp()` semantics, including priority re-ascent.
+    #[track_caller]
     pub(crate) fn wake_up_engine(&mut self, id: EngineId) {
+        // Phase A 7-LOOP-CHAIN: WAKE per wake_up_engine call.
+        let caller = std::panic::Location::caller();
+        let type_name = self
+            .engines
+            .get(id)
+            .map(|e| e.type_name)
+            .unwrap_or("<unregistered>");
+        let line = format!(
+            "WAKE|wall_us={}|slice={}|engine_id={:?}|engine_type={}|caller={}:{}\n",
+            crate::emInstr::wall_us(),
+            self.time_slice_counter,
+            id,
+            type_name,
+            caller.file(),
+            caller.line(),
+        );
+        crate::emInstr::write_line(&line);
+
         let Some(eng) = self.engines.get_mut(id) else {
             return;
         };
@@ -340,9 +359,27 @@ impl EngineScheduler {
     ///
     /// Phase 3.5.A Task 6.2: replaces the Phase 1.75 `TreeLocation`-keyed
     /// dispatch with a flat per-window scheme.
-    pub fn register_engine(
+    pub fn register_engine<E: emEngine + 'static>(
+        &mut self,
+        behavior: E,
+        priority: Priority,
+        scope: PanelScope,
+    ) -> EngineId {
+        let type_name = std::any::type_name::<E>();
+        self.register_engine_dyn(Box::new(behavior), type_name, priority, scope)
+    }
+
+    /// Register a pre-erased engine. Used by delegate paths where the concrete
+    /// type has already been erased (e.g., `ConstructCtx` trait impls).
+    ///
+    /// RUST_ONLY: (language-forced-utility) Rust dyn dispatch cannot capture
+    /// the C++ RTTI equivalent through a trait object; this parallel entry point
+    /// accepts an explicit type_name string from callers that cannot be
+    /// monomorphized (object-safety wall on `ConstructCtx`).
+    pub fn register_engine_dyn(
         &mut self,
         behavior: Box<dyn emEngine>,
+        type_name: &'static str,
         priority: Priority,
         scope: PanelScope,
     ) -> EngineId {
@@ -351,9 +388,35 @@ impl EngineScheduler {
             awake_state: -1, // sleeping
             behavior: Some(behavior),
             clock: self.inner.clock,
+            type_name,
         });
         self.inner.engine_scopes.insert(id, scope);
+        {
+            let scope_str = match scope {
+                PanelScope::Framework => "Framework".to_string(),
+                PanelScope::Toplevel(wid) => format!("Toplevel({:?})", wid),
+                PanelScope::SubView {
+                    window_id,
+                    outer_panel_id,
+                } => {
+                    format!("SubView({:?},{:?})", window_id, outer_panel_id)
+                }
+            };
+            let line = format!(
+                "REGISTER|wall_us={}|engine_id={:?}|engine_type={}|scope={}\n",
+                crate::emInstr::wall_us(),
+                id,
+                type_name,
+                scope_str,
+            );
+            crate::emInstr::write_line(&line);
+        }
         id
+    }
+
+    /// Return the type name stored for an engine, or `None` if the id is stale.
+    pub fn engine_type_name(&self, id: EngineId) -> Option<&'static str> {
+        self.inner.engines.get(id).map(|e| e.type_name)
     }
 
     /// Remove an engine from the scheduler.
@@ -373,6 +436,7 @@ impl EngineScheduler {
     /// Wake up an engine so it runs in the current time slice.
     /// If already awake in the next-parity queue, moves it to current parity
     /// (critical for instant signal chaining).
+    #[track_caller]
     pub fn wake_up(&mut self, id: EngineId) {
         self.inner.wake_up_engine(id);
     }
@@ -738,6 +802,25 @@ impl EngineScheduler {
                 }
             };
 
+            // Phase A 7-LOOP-CHAIN: STAYAWAKE per Cycle return.
+            {
+                let type_name = self
+                    .inner
+                    .engines
+                    .get(engine_id)
+                    .map(|e| e.type_name)
+                    .unwrap_or("<removed>");
+                let line = format!(
+                    "STAYAWAKE|wall_us={}|slice={}|engine_id={:?}|engine_type={}|stay_awake={}\n",
+                    crate::emInstr::wall_us(),
+                    self.inner.time_slice_counter,
+                    engine_id,
+                    type_name,
+                    if stay_awake { "t" } else { "f" },
+                );
+                crate::emInstr::write_line(&line);
+            }
+
             self.inner
                 .instr
                 .cycled
@@ -1052,9 +1135,9 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let count = Rc::new(RefCell::new(0u32));
         let id = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1072,10 +1155,10 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let count = Rc::new(RefCell::new(0u32));
         let id = sched.register_engine(
-            Box::new(PollingEngine {
+            PollingEngine {
                 remaining: 3,
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1096,9 +1179,9 @@ mod tests {
         let count = Rc::new(RefCell::new(0u32));
         let sig = sched.create_signal();
         let eng = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::High,
             PanelScope::Framework,
         );
@@ -1119,9 +1202,9 @@ mod tests {
         let count = Rc::new(RefCell::new(0u32));
         let sig = sched.create_signal();
         let eng = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1150,18 +1233,18 @@ mod tests {
         }
 
         let low = sched.register_engine(
-            Box::new(OrderEngine {
+            OrderEngine {
                 label: "low",
                 order: Rc::clone(&order),
-            }),
+            },
             Priority::Low,
             PanelScope::Framework,
         );
         let high = sched.register_engine(
-            Box::new(OrderEngine {
+            OrderEngine {
                 label: "high",
                 order: Rc::clone(&order),
-            }),
+            },
             Priority::VeryHigh,
             PanelScope::Framework,
         );
@@ -1200,12 +1283,12 @@ mod tests {
         let a_fired = Rc::new(RefCell::new(false));
         let b_fired = Rc::new(RefCell::new(false));
         let eng = sched.register_engine(
-            Box::new(CheckSignalEngine {
+            CheckSignalEngine {
                 sig_a,
                 sig_b,
                 a_fired: Rc::clone(&a_fired),
                 b_fired: Rc::clone(&b_fired),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1225,9 +1308,9 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let sig = sched.create_signal();
         let eng = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::new(RefCell::new(0)),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1264,18 +1347,18 @@ mod tests {
         }
 
         let eng_a = sched.register_engine(
-            Box::new(OrderEngine {
+            OrderEngine {
                 label: "A",
                 order: Rc::clone(&order),
-            }),
+            },
             Priority::Low,
             PanelScope::Framework,
         );
         let eng_b = sched.register_engine(
-            Box::new(OrderEngine {
+            OrderEngine {
                 label: "B",
                 order: Rc::clone(&order),
-            }),
+            },
             Priority::High,
             PanelScope::Framework,
         );
@@ -1325,19 +1408,19 @@ mod tests {
         }
 
         let eng_b = sched.register_engine(
-            Box::new(ReceivingEngine {
+            ReceivingEngine {
                 log: Rc::clone(&log),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
         sched.connect(sig, eng_b);
 
         let _eng_a = sched.register_engine(
-            Box::new(FiringEngine {
+            FiringEngine {
                 sig,
                 log: Rc::clone(&log),
-            }),
+            },
             Priority::High,
             PanelScope::Framework,
         );
@@ -1383,19 +1466,19 @@ mod tests {
         }
 
         let eng_high = sched.register_engine(
-            Box::new(HighEngine {
+            HighEngine {
                 log: Rc::clone(&log),
-            }),
+            },
             Priority::VeryHigh,
             PanelScope::Framework,
         );
         sched.connect(sig, eng_high);
 
         let eng_low = sched.register_engine(
-            Box::new(FiringEngine {
+            FiringEngine {
                 sig,
                 log: Rc::clone(&log),
-            }),
+            },
             Priority::VeryLow,
             PanelScope::Framework,
         );
@@ -1432,9 +1515,9 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let count = Rc::new(RefCell::new(0u32));
         let id = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );
@@ -1488,9 +1571,9 @@ mod tests {
 
         let count = Rc::new(RefCell::new(0u32));
         let id = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Toplevel(wid),
         );
@@ -1540,9 +1623,9 @@ mod tests {
         let count = Rc::new(RefCell::new(0u32));
         let missing_wid = WindowId::dummy();
         let id = sched.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::clone(&count),
-            }),
+            },
             Priority::Medium,
             PanelScope::Toplevel(missing_wid),
         );
@@ -1611,9 +1694,9 @@ mod tests {
         }
         let mut s = EngineScheduler::new();
         let wid = WindowId::dummy();
-        let e1 = s.register_engine(Box::new(Noop), Priority::Medium, PanelScope::Framework);
-        let e2 = s.register_engine(Box::new(Noop), Priority::Medium, PanelScope::Toplevel(wid));
-        let e3 = s.register_engine(Box::new(Noop), Priority::Medium, PanelScope::Toplevel(wid));
+        let e1 = s.register_engine(Noop, Priority::Medium, PanelScope::Framework);
+        let e2 = s.register_engine(Noop, Priority::Medium, PanelScope::Toplevel(wid));
+        let e3 = s.register_engine(Noop, Priority::Medium, PanelScope::Toplevel(wid));
 
         let fw = s.engines_for_scope(PanelScope::Framework);
         let tl = s.engines_for_scope(PanelScope::Toplevel(wid));
@@ -1648,9 +1731,9 @@ mod tests {
     fn is_idle_false_with_wake_queue_entry() {
         let mut s = EngineScheduler::new();
         let id = s.register_engine(
-            Box::new(CountingEngine {
+            CountingEngine {
                 count: Rc::new(RefCell::new(0)),
-            }),
+            },
             Priority::Medium,
             PanelScope::Framework,
         );

@@ -88,11 +88,9 @@ fn make_stock(id: &str, name: &str, interest: Interest) -> StockRec {
 fn listbox_reacts_to_file_model_change_signal_with_update_items() {
     use emStocks::emStocksConfig::emStocksConfig;
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let mut rec = emStocksRec::default();
     rec.stocks.push(make_stock("1", "Alpha", Interest::High));
@@ -144,11 +142,9 @@ fn listbox_reacts_to_file_model_change_signal_with_update_items() {
 fn listbox_reacts_to_config_change_signal_with_update_items() {
     use emStocks::emStocksConfig::emStocksConfig;
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let mut rec = emStocksRec::default();
     rec.stocks.push(make_stock("1", "Alpha", Interest::High));
@@ -203,11 +199,9 @@ fn listbox_connects_item_trigger_signal_after_attach() {
     use emcore::emLook::emLook;
 
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let mut rec = emStocksRec::default();
     let config = emStocksConfig::default();

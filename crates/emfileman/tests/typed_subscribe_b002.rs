@@ -78,11 +78,9 @@ fn link_panel_subscribes_to_model_change_signal_after_set_link_model() {
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
 
     // Without a model: first Cycle subscribes panel-lifetime signals only.
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
     // The model's change signal is still null on the model side (not allocated).
@@ -115,11 +113,9 @@ fn link_panel_re_subscribes_on_set_link_model_swap() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let model_a = emFileLinkModel::Acquire(&ctx, "/tmp/b002_swap_a.emFileLink", false);
     panel.set_link_model(Rc::clone(&model_a));
@@ -154,11 +150,9 @@ fn link_panel_model_mutator_fires_change_signal_synchronously() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let model = emFileLinkModel::Acquire(&ctx, "/tmp/b002_sync.emFileLink", false);
     panel.set_link_model(Rc::clone(&model));

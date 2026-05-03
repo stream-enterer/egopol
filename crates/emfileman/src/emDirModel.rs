@@ -297,9 +297,9 @@ impl emDirModel {
         if model_rc.borrow().engine_id.is_some() {
             return;
         }
-        let engine = Box::new(emDirModelEngine {
+        let engine = emDirModelEngine {
             model: Rc::downgrade(model_rc),
-        });
+        };
         let engine_id = scheduler.register_engine(engine, Priority::Medium, PanelScope::Framework);
         scheduler.wake_up(engine_id);
         model_rc.borrow_mut().engine_id = Some(engine_id);

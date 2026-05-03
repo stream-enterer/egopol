@@ -321,10 +321,8 @@ impl SettingsPanel {
         sf.SetTextOfValueFunc(Box::new(DurationTextOfValue));
         // No on_value callback — Cycle reads via IsSignaled(sf_duration_value).
         self.sf_duration_signal = Some(sf.value_signal);
-        let sf_id = ctx.create_child_with(
-            "duration",
-            Box::new(AutoplayScalarFieldPanel { scalar_field: sf }),
-        );
+        let sf_id =
+            ctx.create_child_with("duration", AutoplayScalarFieldPanel { scalar_field: sf });
         self.sf_duration_id = Some(sf_id);
         self.layout.set_child_constraint(
             sf_id,
@@ -345,9 +343,9 @@ impl SettingsPanel {
         self.cb_recursive_signal = Some(cb_recursive.check_signal);
         let recursive_id = ctx.create_child_with(
             "recursive",
-            Box::new(AutoplayCheckBoxPanel {
+            AutoplayCheckBoxPanel {
                 check_box: cb_recursive,
-            }),
+            },
         );
         self.cb_recursive_id = Some(recursive_id);
         self.layout.set_child_constraint(
@@ -370,10 +368,7 @@ impl SettingsPanel {
         );
         // No on_check — Cycle reads via IsSignaled.
         self.cb_loop_signal = Some(cb_loop.check_signal);
-        let loop_id = ctx.create_child_with(
-            "loop",
-            Box::new(AutoplayCheckBoxPanel { check_box: cb_loop }),
-        );
+        let loop_id = ctx.create_child_with("loop", AutoplayCheckBoxPanel { check_box: cb_loop });
         self.cb_loop_id = Some(loop_id);
         self.layout.set_child_constraint(
             loop_id,
@@ -481,7 +476,7 @@ impl PrevNextPanel {
         );
         // No on_click — Cycle reads via IsSignaled.
         self.bt_prev_signal = Some(btn_prev.click_signal);
-        ctx.create_child_with("prev", Box::new(AutoplayButtonPanel { button: btn_prev }));
+        ctx.create_child_with("prev", AutoplayButtonPanel { button: btn_prev });
 
         // ── BtNext ──
         let mut btn_next = {
@@ -495,7 +490,7 @@ impl PrevNextPanel {
         );
         // No on_click — Cycle reads via IsSignaled.
         self.bt_next_signal = Some(btn_next.click_signal);
-        ctx.create_child_with("next", Box::new(AutoplayButtonPanel { button: btn_next }));
+        ctx.create_child_with("next", AutoplayButtonPanel { button: btn_next });
 
         self.children_created = true;
     }
@@ -599,10 +594,10 @@ impl emAutoplayControlPanel {
         self.bt_autoplay_check_signal = Some(btn_autoplay.check_signal);
         let autoplay_id = ctx.create_child_with(
             "autoplay",
-            Box::new(AutoplayCheckButtonPanel {
+            AutoplayCheckButtonPanel {
                 check_button: btn_autoplay,
                 model: Rc::clone(&self.model),
-            }),
+            },
         );
         self.autoplay_panel_id = Some(autoplay_id);
         self.layout.set_child_constraint(
@@ -616,7 +611,7 @@ impl emAutoplayControlPanel {
 
         // ── child 1: lPrevNext (emLinearLayout) ──
         // C++ SetChildWeight(1, 0.64), SetPrefChildTallness(1, 0.4)
-        let prev_next = Box::new(PrevNextPanel::new(Rc::clone(&look)));
+        let prev_next = PrevNextPanel::new(Rc::clone(&look));
         let prev_next_id = ctx.create_child_with("prev_next", prev_next);
         self.layout.set_child_constraint(
             prev_next_id,
@@ -640,8 +635,7 @@ impl emAutoplayControlPanel {
         );
         // No on_click — Cycle reads via IsSignaled.
         self.bt_continue_last_click_signal = Some(btn_cont.click_signal);
-        let cont_id =
-            ctx.create_child_with("cont", Box::new(AutoplayButtonPanel { button: btn_cont }));
+        let cont_id = ctx.create_child_with("cont", AutoplayButtonPanel { button: btn_cont });
         self.layout.set_child_constraint(
             cont_id,
             ChildConstraint {
@@ -653,7 +647,7 @@ impl emAutoplayControlPanel {
 
         // ── child 3: lSettings (emPackGroup "Autoplay Settings") ──
         // C++ SetChildWeight(3, 0.28), SetPrefChildTallness(3, 0.4)
-        let settings = Box::new(SettingsPanel::new(Rc::clone(&look)));
+        let settings = SettingsPanel::new(Rc::clone(&look));
         let settings_id = ctx.create_child_with("settings", settings);
         self.layout.set_child_constraint(
             settings_id,
@@ -954,10 +948,7 @@ mod tests {
         let root_id = tree.create_root_deferred_view("autoplay_cp");
         tree.set_behavior(
             root_id,
-            Box::new(emAutoplayControlPanel::new(
-                Rc::clone(&look),
-                Rc::clone(&model),
-            )),
+            emAutoplayControlPanel::new(Rc::clone(&look), Rc::clone(&model)),
         );
         // set_panel_view marks the panel as having a live view (has_view=true), which
         // register_engine_for_public requires before it will create a PanelCycleEngine.

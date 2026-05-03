@@ -884,7 +884,7 @@ impl PanelBehavior for emBookmarksPanel {
                 match entry {
                     emBookmarkEntryUnion::Bookmark(bm) => {
                         let btn = emBookmarkButton::new(bm.clone());
-                        ctx.create_child_with(&name, Box::new(btn));
+                        ctx.create_child_with(&name, btn);
                     }
                     emBookmarkEntryUnion::Group(grp) => {
                         // Build a nested panel backed by a temporary model
@@ -892,7 +892,7 @@ impl PanelBehavior for emBookmarksPanel {
                         // it can re-acquire the model for sub-entries.
                         let sub_panel =
                             emBookmarksGroupPanel::new(Rc::clone(&self.ctx), grp.clone());
-                        ctx.create_child_with(&name, Box::new(sub_panel));
+                        ctx.create_child_with(&name, sub_panel);
                     }
                 }
             }
@@ -995,11 +995,11 @@ impl PanelBehavior for emBookmarksGroupPanel {
             match entry {
                 emBookmarkEntryUnion::Bookmark(bm) => {
                     let btn = emBookmarkButton::new(bm.clone());
-                    ctx.create_child_with(&name, Box::new(btn));
+                    ctx.create_child_with(&name, btn);
                 }
                 emBookmarkEntryUnion::Group(sub_grp) => {
                     let sub = emBookmarksGroupPanel::new(Rc::clone(&self._ctx), sub_grp.clone());
-                    ctx.create_child_with(&name, Box::new(sub));
+                    ctx.create_child_with(&name, sub);
                 }
             }
         }

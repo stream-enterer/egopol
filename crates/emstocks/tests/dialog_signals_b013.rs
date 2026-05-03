@@ -72,11 +72,9 @@ fn populated_rec_and_lb() -> (emStocksRec, emStocksListBox, emStocksConfig) {
 #[test]
 fn delete_dialog_finish_signal_drives_cycle() {
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
 
@@ -135,11 +133,9 @@ fn delete_dialog_finish_signal_drives_cycle() {
 #[test]
 fn cut_dialog_finish_signal_drives_cycle() {
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
 
@@ -184,11 +180,9 @@ fn cut_dialog_finish_signal_drives_cycle() {
 #[test]
 fn paste_dialog_finish_signal_drives_cycle() {
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
 
@@ -231,11 +225,9 @@ fn paste_dialog_finish_signal_drives_cycle() {
 #[test]
 fn interest_dialog_finish_signal_drives_cycle_ok() {
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
     rec.stocks.clear();
@@ -287,11 +279,9 @@ fn interest_dialog_cancel_resets_interest_to_set() {
     // §3.3a: Interest-block cancel-side cleanup — `interest_to_set = None;`
     // must be reset on non-Ok finish (preserves existing semantics).
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
     rec.stocks.clear();
@@ -347,11 +337,9 @@ fn cancel_old_dialog_disconnects_old_finish_signal() {
     // branch runs, the new dialog has a fresh finish_signal and subscribed
     // is reset (so the next Cycle re-subscribes for the new sig).
     let mut h = TestViewHarness::new();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let (mut rec, mut lb, config) = populated_rec_and_lb();
 

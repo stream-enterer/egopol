@@ -174,6 +174,11 @@ pub(crate) struct PanelData {
     // Notices & behavior
     pub(crate) pending_notices: NoticeFlags,
     pub(crate) behavior: Option<Box<dyn PanelBehavior>>,
+    // RUST_ONLY: (language-forced-utility) Concrete behavior type name captured
+    // at the monomorphized panel-creation call site. Required because Rust trait
+    // objects do not preserve concrete-type info through their vtables; C++ has
+    // full RTTI. Instrumentation-only field.
+    pub(crate) behavior_type_name: &'static str,
 
     // Autoplay / playback
     pub(crate) autoplay_handling: AutoplayHandlingFlags,
@@ -266,6 +271,7 @@ impl PanelData {
             enabled: true,
             pending_notices: NoticeFlags::empty(),
             behavior: None,
+            behavior_type_name: "<unset>",
             autoplay_handling: AutoplayHandlingFlags::empty(),
             ae_threshold_type: ViewConditionType::Area,
             ae_threshold_value: 150.0,
@@ -692,7 +698,7 @@ impl PanelTree {
             #[cfg(any(test, feature = "test-support"))]
             cycle_counter: None,
         };
-        let eid = sched.register_engine(Box::new(adapter), Priority::Medium, scope);
+        let eid = sched.register_engine(adapter, Priority::Medium, scope);
         self.panels[id].engine_id = Some(eid);
     }
 
@@ -1632,15 +1638,44 @@ impl PanelTree {
         }
     }
 
-    /// Set the behavior for a panel.
-    pub fn set_behavior(&mut self, id: PanelId, behavior: Box<dyn PanelBehavior>) {
+    /// Set the behavior for a panel, capturing the concrete type name.
+    ///
+    /// This is the preferred entry point for callers that hold the concrete
+    /// type at the call site. The monomorphized `type_name` is stored on
+    /// `PanelData` for instrumentation (Task 8 NOTICE log line).
+    pub fn set_behavior<B: PanelBehavior + 'static>(&mut self, id: PanelId, behavior: B) {
+        let type_name = std::any::type_name::<B>();
+        self.set_behavior_dyn(id, Box::new(behavior), type_name);
+    }
+
+    /// Set the behavior for a panel from a pre-erased box.
+    ///
+    /// RUST_ONLY: (language-forced-utility) Parallel entry point for call sites
+    /// where the concrete type has already been erased — plugin dispatch
+    /// (`emFpPluginFunc` cdylib ABI), `emListBox` item-factory return, and
+    /// `emDialog::set_content_behavior`. The caller supplies an explicit
+    /// `behavior_type_name`; pass `"<dyn PanelBehavior>"` when the concrete
+    /// type is not recoverable.
+    pub fn set_behavior_dyn(
+        &mut self,
+        id: PanelId,
+        behavior: Box<dyn PanelBehavior>,
+        behavior_type_name: &'static str,
+    ) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.behavior = Some(behavior);
+            panel.behavior_type_name = behavior_type_name;
             // Behavior installed on an existing panel means its AE
             // decision could now change (e.g., sub-tree root gets
             // emMainContentPanel behavior). Force re-evaluation.
             panel.ae_decision_invalid = true;
         }
+    }
+
+    /// Return the concrete behavior type name stored for a panel, or `None`
+    /// if the panel does not exist.
+    pub fn behavior_type_name(&self, id: PanelId) -> Option<&'static str> {
+        self.panels.get(id).map(|p| p.behavior_type_name)
     }
 
     pub fn has_behavior(&self, id: PanelId) -> bool {
@@ -3237,7 +3272,7 @@ mod tests {
 
         let mut t = PanelTree::new();
         let root = t.create_root_deferred_view("root");
-        t.set_behavior(root, Box::new(ControlCreator));
+        t.set_behavior(root, ControlCreator);
 
         let child = t.create_child(root, "child", None);
         // child has no behavior, so create_control_panel should
@@ -3278,7 +3313,7 @@ mod tests {
         let mut content = PanelTree::new();
         let content_root = content.create_root_deferred_view("content_root");
         let active = content.create_child(content_root, "active", None);
-        content.set_behavior(content_root, Box::new(SchedReachProbe(had_reach.clone())));
+        content.set_behavior(content_root, SchedReachProbe(had_reach.clone()));
 
         let mut ctrl = PanelTree::new();
         let ctrl_root = ctrl.create_root_deferred_view("ctrl_root");
@@ -3333,7 +3368,7 @@ mod tests {
 
         let mut t = PanelTree::new();
         let root = t.create_root_deferred_view("root");
-        t.set_behavior(root, Box::new(GuardedCreator));
+        t.set_behavior(root, GuardedCreator);
 
         let child = t.create_child(root, "child", None);
         // child has no behavior; root has GuardedCreator.
@@ -3388,7 +3423,7 @@ mod tests {
         let content_root = content.create_root_deferred_view("content_root");
         let mid = content.create_child(content_root, "mid", None);
         let leaf = content.create_child(mid, "leaf", None);
-        content.set_behavior(mid, Box::new(GuardedCrossCreator));
+        content.set_behavior(mid, GuardedCrossCreator);
         // Active panel is the leaf; mid (the guarded behavior holder) is inactive.
         content.panels[mid].is_active = false;
         content.panels[leaf].is_active = true;
@@ -3804,10 +3839,10 @@ mod tests {
         windows.insert(wid, win);
 
         let spawn_eid = sched.borrow_mut().register_engine(
-            Box::new(ChildSpawnEngine {
+            ChildSpawnEngine {
                 parent: root,
                 spawned: false,
-            }),
+            },
             crate::emEngine::Priority::Medium,
             crate::emPanelScope::PanelScope::Toplevel(wid),
         );
@@ -3936,9 +3971,9 @@ mod tests {
         let recorded_a = Rc::new(Cell::new(None));
         tree_a.set_behavior(
             root_a,
-            Box::new(TallnessRecordingBehavior {
+            TallnessRecordingBehavior {
                 recorded: recorded_a.clone(),
-            }),
+            },
         );
         let eid_a = tree_a.GetRec(root_a).and_then(|p| p.engine_id).unwrap();
 
@@ -3961,9 +3996,9 @@ mod tests {
         let recorded_b = Rc::new(Cell::new(None));
         tree_b.set_behavior(
             root_b,
-            Box::new(TallnessRecordingBehavior {
+            TallnessRecordingBehavior {
                 recorded: recorded_b.clone(),
-            }),
+            },
         );
         let eid_b = tree_b.GetRec(root_b).and_then(|p| p.engine_id).unwrap();
 
@@ -4115,17 +4150,17 @@ mod tests {
         let woke = Rc::new(Cell::new(0u32));
         tree.set_behavior(
             a,
-            Box::new(WakerBehavior {
+            WakerBehavior {
                 sibling: b,
                 woke_called: woke.clone(),
                 cycles: a_cycles.clone(),
-            }),
+            },
         );
         tree.set_behavior(
             b,
-            Box::new(CounterBehavior {
+            CounterBehavior {
                 cycles: b_cycles.clone(),
-            }),
+            },
         );
 
         let eid_a = tree.GetRec(a).and_then(|p| p.engine_id).unwrap();
@@ -4299,13 +4334,13 @@ mod tests {
         windows.insert(wid, win);
 
         let spawn_eid = sched.borrow_mut().register_engine(
-            Box::new(SpawnEngineWithProbe {
+            SpawnEngineWithProbe {
                 parent: root,
                 spawned_out: spawned_id.clone(),
                 create_slice_out: create_slice.clone(),
                 cycled_at: cycled_at.clone(),
                 done: false,
-            }),
+            },
             crate::emEngine::Priority::Medium,
             crate::emPanelScope::PanelScope::Toplevel(wid),
         );

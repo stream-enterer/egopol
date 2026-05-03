@@ -307,7 +307,7 @@ impl PanelBehavior for emStarFieldPanel {
             for i in 0..4 {
                 let child_depth = self.depth + 1;
                 let child_seed = self.child_random_seeds[i];
-                let child = Box::new(emStarFieldPanel::new(child_depth, child_seed));
+                let child = emStarFieldPanel::new(child_depth, child_seed);
                 let child_id = ctx.create_child_with(&format!("{i}"), child);
                 // Set the child's auto-expand threshold.
                 ctx.tree.SetAutoExpansionThreshold(
@@ -323,7 +323,7 @@ impl PanelBehavior for emStarFieldPanel {
             // C++: if (Depth>50 && GetRandom()%11213==0) new TicTacToePanel(this,"t")
             //      p->Layout(0.48, 0.48, 0.04, 0.04)
             if self.has_tic_tac_toe {
-                let ttt = Box::new(TicTacToePanel::new());
+                let ttt = TicTacToePanel::new();
                 let ttt_id = ctx.create_child_with("t", ttt);
                 ctx.layout_child_canvas(ttt_id, 0.48, 0.48, 0.04, 0.04, bg);
             }

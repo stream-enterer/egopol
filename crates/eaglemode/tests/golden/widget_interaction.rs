@@ -664,7 +664,7 @@ fn run_splitter_layout_step(
     let c0 = tree.create_child(root, "left", None);
     let c1 = tree.create_child(root, "right", None);
 
-    tree.set_behavior(root, Box::new(SplitterLayoutBehavior { splitter: sp }));
+    tree.set_behavior(root, SplitterLayoutBehavior { splitter: sp });
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -859,7 +859,7 @@ fn composition_click_through_tree() {
         .with_inner(InnerBorderType::None)
         .with_caption("Container");
     container_group.border.label_in_border = true;
-    tree.set_behavior(container_id, Box::new(container_group));
+    tree.set_behavior(container_id, container_group);
 
     let button_id = tree.create_child(container_id, "button", None);
     let mut btn = emButton::new(&mut ts.cc(), "Click Me", look);
@@ -868,9 +868,9 @@ fn composition_click_through_tree() {
             clicked_clone.set(clicked_clone.get() + 1);
         },
     ));
-    tree.set_behavior(button_id, Box::new(ClickableButtonPanel { widget: btn }));
+    tree.set_behavior(button_id, ClickableButtonPanel { widget: btn });
 
-    tree.set_behavior(root, Box::new(root_group));
+    tree.set_behavior(root, root_group);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);

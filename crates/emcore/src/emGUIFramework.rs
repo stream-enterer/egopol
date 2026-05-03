@@ -256,7 +256,7 @@ impl App {
         // `pending_inputs` and wake this engine; its `Cycle` drains the
         // queue at the top of each slice before any other engine runs.
         let input_dispatch_engine_id = scheduler.register_engine(
-            Box::new(crate::emInputDispatchEngine::InputDispatchEngine),
+            crate::emInputDispatchEngine::InputDispatchEngine,
             crate::emEngine::Priority::VeryHigh,
             crate::emPanelScope::PanelScope::Framework,
         );
@@ -695,13 +695,12 @@ impl App {
         // Phase 3.5 Task 10: also pass `dialog_id` so auto-delete can call
         // `App::close_dialog_by_id(did)` via the closure rail.
         {
-            let engine = Box::new(crate::emDialog::DialogPrivateEngine {
-                dialog_id: pending.dialog_id,
-                root_panel_id: pending.private_engine_root_panel_id,
-                close_signal: pending.close_signal,
-            });
             let engine_id = self.scheduler.register_engine(
-                engine,
+                crate::emDialog::DialogPrivateEngine {
+                    dialog_id: pending.dialog_id,
+                    root_panel_id: pending.private_engine_root_panel_id,
+                    close_signal: pending.close_signal,
+                },
                 Priority::High,
                 PanelScope::Toplevel(new_wid),
             );
@@ -796,14 +795,15 @@ impl App {
         // Phase 3.5 Task 5: construct DialogPrivateEngine here, not in emDialog::new.
         // Mirrors `install_pending_top_level` but skips winit surface creation.
         // Phase 3.5 Task 10: pass `dialog_id` for closure-rail auto-delete.
-        let engine = Box::new(crate::emDialog::DialogPrivateEngine {
-            dialog_id: pending.dialog_id,
-            root_panel_id: pending.private_engine_root_panel_id,
-            close_signal: pending.close_signal,
-        });
-        let engine_id =
-            self.scheduler
-                .register_engine(engine, Priority::High, PanelScope::Toplevel(wid));
+        let engine_id = self.scheduler.register_engine(
+            crate::emDialog::DialogPrivateEngine {
+                dialog_id: pending.dialog_id,
+                root_panel_id: pending.private_engine_root_panel_id,
+                close_signal: pending.close_signal,
+            },
+            Priority::High,
+            PanelScope::Toplevel(wid),
+        );
         self.scheduler.connect(pending.close_signal, engine_id);
         // Phase 3.6 Task 3: drain pre-show wake-up signal subscriptions.
         // Mirrors the production installer above.
@@ -1550,7 +1550,7 @@ mod tests {
         // EngineScheduler::drop debug_assert.
         let mut app = App::new(Box::new(|_app, _el| {}));
         let _extra = app.scheduler.register_engine(
-            Box::new(crate::emInputDispatchEngine::InputDispatchEngine),
+            crate::emInputDispatchEngine::InputDispatchEngine,
             crate::emEngine::Priority::Low,
             crate::emPanelScope::PanelScope::Framework,
         );
@@ -1824,7 +1824,7 @@ mod tests {
             let root_id = tree.create_root("dlg", false);
             let look = std::rc::Rc::new(emLook::new());
             let dlg_panel = DlgPanel::new("Original", std::rc::Rc::clone(&look), finish_sig);
-            tree.set_behavior(root_id, Box::new(dlg_panel));
+            tree.set_behavior(root_id, dlg_panel);
 
             // Build the window with the populated tree installed.
             let mut window = make_pending_window(&mut app);

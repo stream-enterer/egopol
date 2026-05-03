@@ -78,7 +78,7 @@ impl emRecListener {
         // Framework scope: the listener isn't bound to a panel tree.
         // Priority::Low: user callbacks shouldn't preempt rendering / input dispatch.
         let engine_id = ctx.register_engine(
-            Box::new(ListenerEngine { callback }),
+            ListenerEngine { callback },
             Priority::Low,
             PanelScope::Framework,
         );

@@ -108,7 +108,13 @@ impl emDirEntryAltPanel {
                 },
                 self.data.alternative as usize,
             );
-            let child_id = ctx.create_child_with(crate::emDirEntryPanel::CONTENT_NAME, behavior);
+            // Pre-erased: behavior comes from emFpPluginList::CreateFilePanelWithStat
+            // (cdylib ABI, plugin-path). Concrete type is not recoverable here.
+            let child_id = ctx.create_child_with_dyn(
+                crate::emDirEntryPanel::CONTENT_NAME,
+                behavior,
+                "<dyn PanelBehavior>",
+            );
             self.content_panel = Some(child_id);
         }
     }
@@ -132,8 +138,7 @@ impl emDirEntryAltPanel {
                 self.data.dir_entry.clone(),
                 self.data.alternative + 1,
             );
-            let child_id =
-                ctx.create_child_with(crate::emDirEntryPanel::ALT_NAME, Box::new(next_alt));
+            let child_id = ctx.create_child_with(crate::emDirEntryPanel::ALT_NAME, next_alt);
             self.alt_panel = Some(child_id);
         }
     }

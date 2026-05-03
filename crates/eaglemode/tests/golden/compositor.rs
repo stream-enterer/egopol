@@ -72,10 +72,7 @@ fn compositor_single_panel() {
     let root = tree.create_root_deferred_view("root");
     // Tallness must match viewport aspect ratio (600/800 = 0.75) so root fills viewport.
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
-    tree.set_behavior(
-        root,
-        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
-    );
+    tree.set_behavior(root, ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255)));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -104,14 +101,14 @@ fn compositor_overlap() {
     tree.Layout(panel_a, 0.1, 0.1, 0.4, 0.3, 1.0, None);
     tree.set_behavior(
         panel_a,
-        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
+        ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255)),
     );
 
     let panel_b = tree.create_child(root, "panelB", None);
     tree.Layout(panel_b, 0.3, 0.2, 0.4, 0.3, 1.0, None);
     tree.set_behavior(
         panel_b,
-        Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
+        ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255)),
     );
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
@@ -142,10 +139,7 @@ fn compositor_nested() {
 
     let child = tree.create_child(parent, "child", None);
     tree.Layout(child, 0.1, 0.075, 0.8, 0.6, 1.0, None);
-    tree.set_behavior(
-        child,
-        Box::new(ColorFillBehavior::new(emColor::rgba(0, 255, 0, 255))),
-    );
+    tree.set_behavior(child, ColorFillBehavior::new(emColor::rgba(0, 255, 0, 255)));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -171,16 +165,13 @@ fn compositor_canvas_color() {
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0, None);
     tree.set_behavior(
         root,
-        Box::new(ColorFillBehavior::new(emColor::rgba(255, 255, 255, 255))),
+        ColorFillBehavior::new(emColor::rgba(255, 255, 255, 255)),
     );
 
     let child = tree.create_child(root, "child", None);
     tree.Layout(child, 0.1, 0.075, 0.8, 0.6, 1.0, None);
     tree.SetCanvasColor(child, emColor::rgba(255, 255, 255, 255), None);
-    tree.set_behavior(
-        child,
-        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 128))),
-    );
+    tree.set_behavior(child, ColorFillBehavior::new(emColor::rgba(255, 0, 0, 128)));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -208,17 +199,11 @@ fn compositor_two_children() {
 
     let left = tree.create_child(root, "left", None);
     tree.Layout(left, 0.0, 0.0, 0.5, 0.75, 1.0, None);
-    tree.set_behavior(
-        left,
-        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
-    );
+    tree.set_behavior(left, ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255)));
 
     let right = tree.create_child(root, "right", None);
     tree.Layout(right, 0.5, 0.0, 0.5, 0.75, 1.0, None);
-    tree.set_behavior(
-        right,
-        Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
-    );
+    tree.set_behavior(right, ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255)));
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);

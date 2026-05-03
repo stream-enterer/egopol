@@ -1500,11 +1500,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut chart = emStocksItemChart::for_test();
         assert!(!chart.subscribed_init);
@@ -1821,9 +1819,9 @@ mod tests {
     #[test]
     fn item_chart_first_cycle_wires_g2_g4_signals() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut chart = emStocksItemChart::for_test();
         assert!(!chart.subscribed_init);
@@ -1850,9 +1848,9 @@ mod tests {
     #[test]
     fn item_chart_reacts_to_config_change_signal() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut chart = emStocksItemChart::for_test();
         let mut tree = emcore::emPanelTree::PanelTree::new();
@@ -1890,9 +1888,9 @@ mod tests {
     #[test]
     fn item_chart_reacts_to_selected_date_signal() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut chart = emStocksItemChart::for_test();
         let mut tree = emcore::emPanelTree::PanelTree::new();

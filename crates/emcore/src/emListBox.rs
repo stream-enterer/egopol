@@ -1158,7 +1158,11 @@ impl emListBox {
                         enabled,
                     ))
                 };
-            ctx.tree.set_behavior(child, behavior);
+            // Pre-erased: behavior comes from item_behavior_factory (Box<dyn Fn> return)
+            // or DefaultItemPanelBehavior. The `else` branch is concrete but type
+            // unification with the factory arm forces Box<dyn> here. Placeholder used.
+            ctx.tree
+                .set_behavior_dyn(child, behavior, "<dyn PanelBehavior>");
             self.items[i].child_panel_id = Some(child);
         }
     }
@@ -2759,7 +2763,7 @@ mod tests {
             let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
             container.widget.create_item_children(&mut ctx);
         }
-        tree.set_behavior(root_id, Box::new(container));
+        tree.set_behavior(root_id, container);
 
         let child_b = tree.children(root_id).nth(1).expect("item B panel missing");
         let mut behavior = tree.take_behavior(child_b).unwrap();
@@ -2798,7 +2802,7 @@ mod tests {
             let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
             container.widget.create_item_children(&mut ctx);
         }
-        tree.set_behavior(root_id, Box::new(container));
+        tree.set_behavior(root_id, container);
 
         let child_c = tree.children(root_id).nth(2).expect("item C panel missing");
         let mut behavior = tree.take_behavior(child_c).unwrap();
@@ -2853,7 +2857,7 @@ mod tests {
             );
             container.widget.create_item_children(&mut ctx);
         }
-        tree.set_behavior(root_id, Box::new(container));
+        tree.set_behavior(root_id, container);
 
         let child_a = tree.children(root_id).nth(0).expect("item A missing");
         let mut behavior = tree.take_behavior(child_a).unwrap();
@@ -2922,7 +2926,7 @@ mod tests {
             let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
             container.widget.create_item_children(&mut ctx);
         }
-        tree.set_behavior(root_id, Box::new(container));
+        tree.set_behavior(root_id, container);
 
         // Change item 0's text with ctx — should propagate to child behavior.
         // Take behavior first so that ctx (which borrows tree) and the behavior

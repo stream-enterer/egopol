@@ -364,7 +364,7 @@ impl KBGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("zoom", Box::new(zoom));
+        ctx.create_child_with("zoom", zoom);
 
         let scroll_config = Rc::clone(&self.config);
         let mut scroll = make_factor_field(
@@ -398,7 +398,7 @@ impl KBGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("scroll", Box::new(scroll));
+        ctx.create_child_with("scroll", scroll);
     }
 }
 
@@ -691,7 +691,7 @@ impl MouseMiscGroup {
         // B-010 row 299: capture check_signal BEFORE the checkbox moves into
         // the child behavior (SignalId is Copy).
         self.stick_sig = stick.check_signal;
-        let stick_id = ctx.create_child_with("stick", Box::new(CheckBoxPanel { check_box: stick }));
+        let stick_id = ctx.create_child_with("stick", CheckBoxPanel { check_box: stick });
         self.stick_id = Some(stick_id);
         if !self.stick_possible {
             ctx.tree
@@ -705,7 +705,7 @@ impl MouseMiscGroup {
         emu.SetChecked(emu_init, ctx);
         // B-010 row 300: capture check_signal BEFORE child move.
         self.emu_sig = emu.check_signal;
-        let emu_id = ctx.create_child_with("emu", Box::new(CheckBoxPanel { check_box: emu }));
+        let emu_id = ctx.create_child_with("emu", CheckBoxPanel { check_box: emu });
         self.emu_id = Some(emu_id);
 
         let mut pan = {
@@ -715,7 +715,7 @@ impl MouseMiscGroup {
         pan.SetChecked(pan_init, ctx);
         // B-010 row 301: capture check_signal BEFORE child move.
         self.pan_sig = pan.check_signal;
-        let pan_id = ctx.create_child_with("pan", Box::new(CheckBoxPanel { check_box: pan }));
+        let pan_id = ctx.create_child_with("pan", CheckBoxPanel { check_box: pan });
         self.pan_id = Some(pan_id);
     }
 }
@@ -951,7 +951,7 @@ impl KineticGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("KineticZoomingAndScrolling", Box::new(kinetic));
+        ctx.create_child_with("KineticZoomingAndScrolling", kinetic);
 
         // MagnetismRadius
         let mag_radius_config = Rc::clone(&self.config);
@@ -986,7 +986,7 @@ impl KineticGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("MagnetismRadius", Box::new(mag_radius));
+        ctx.create_child_with("MagnetismRadius", mag_radius);
 
         // MagnetismSpeed
         let mag_speed_config = Rc::clone(&self.config);
@@ -1017,7 +1017,7 @@ impl KineticGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("MagnetismSpeed", Box::new(mag_speed));
+        ctx.create_child_with("MagnetismSpeed", mag_speed);
 
         // VisitSpeed
         let visit_config = Rc::clone(&self.config);
@@ -1048,7 +1048,7 @@ impl KineticGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("VisitSpeed", Box::new(visit));
+        ctx.create_child_with("VisitSpeed", visit);
     }
 }
 
@@ -1141,7 +1141,7 @@ impl MaxMemGroup {
             NOTE: After changing the value, you may have to restart the program for the\n\
             change to take effect. Or zoom out from all panels once.";
         let label = emLabel::new(label_text, self.look.clone());
-        let label_id = ctx.create_child_with("label", Box::new(LabelPanel { label }));
+        let label_id = ctx.create_child_with("label", LabelPanel { label });
         self.layout.set_child_constraint(
             label_id,
             ChildConstraint {
@@ -1152,10 +1152,7 @@ impl MaxMemGroup {
 
         let mem_layout_id = ctx.create_child_with(
             "memfield",
-            Box::new(MemFieldLayoutPanel::new(
-                Rc::clone(&self.config),
-                self.look.clone(),
-            )),
+            MemFieldLayoutPanel::new(Rc::clone(&self.config), self.look.clone()),
         );
         self.layout.set_child_constraint(
             mem_layout_id,
@@ -1343,7 +1340,7 @@ impl MemFieldLayoutPanel {
         let update_config = Rc::clone(&self.config);
         let mem_id = ctx.create_child_with(
             "mem",
-            Box::new(FactorFieldPanel {
+            FactorFieldPanel {
                 scalar_field: sf,
                 config_sig: mem_sig,
                 get_config_val: Some(Box::new(move || {
@@ -1356,7 +1353,7 @@ impl MemFieldLayoutPanel {
                     )
                 })),
                 subscribed_to_config: false,
-            }),
+            },
         );
         self.mem_id = Some(mem_id);
     }
@@ -1479,7 +1476,7 @@ impl PanelBehavior for MaxMemInnerTunnelPanel {
         if ctx.child_count() == 0 {
             ctx.create_child_with(
                 "maxMemGroup",
-                Box::new(MaxMemGroup::new(Rc::clone(&self.config), self.look.clone())),
+                MaxMemGroup::new(Rc::clone(&self.config), self.look.clone()),
             );
         }
 
@@ -1541,10 +1538,7 @@ impl PanelBehavior for MaxMemTunnelPanel {
         if ctx.child_count() == 0 {
             ctx.create_child_with(
                 "innerTunnel",
-                Box::new(MaxMemInnerTunnelPanel::new(
-                    Rc::clone(&self.config),
-                    self.look.clone(),
-                )),
+                MaxMemInnerTunnelPanel::new(Rc::clone(&self.config), self.look.clone()),
             );
         }
 
@@ -1748,14 +1742,14 @@ impl CpuGroup {
         let update_config = Rc::clone(&self.config);
         let threads_id = ctx.create_child_with(
             "MaxRenderThreads",
-            Box::new(FactorFieldPanel {
+            FactorFieldPanel {
                 scalar_field: sf,
                 config_sig: threads_sig,
                 get_config_val: Some(Box::new(move || {
                     *update_config.borrow().GetRec().MaxRenderThreads.GetValue() as f64
                 })),
                 subscribed_to_config: false,
-            }),
+            },
         );
         self.threads_id = Some(threads_id);
         self.layout.set_child_constraint(
@@ -1774,7 +1768,7 @@ impl CpuGroup {
         cb.SetChecked(simd_init, ctx);
         // B-010 row 755: capture check_signal BEFORE child move.
         self.simd_sig = cb.check_signal;
-        let simd_id = ctx.create_child_with("allowSIMD", Box::new(CheckBoxPanel { check_box: cb }));
+        let simd_id = ctx.create_child_with("allowSIMD", CheckBoxPanel { check_box: cb });
         self.simd_id = Some(simd_id);
     }
 }
@@ -2066,16 +2060,13 @@ impl PerformanceGroup {
         // MaxMem tunnel
         ctx.create_child_with(
             "maxmem",
-            Box::new(MaxMemTunnelPanel::new(
-                Rc::clone(&self.config),
-                self.look.clone(),
-            )),
+            MaxMemTunnelPanel::new(Rc::clone(&self.config), self.look.clone()),
         );
 
         // CPU group
         ctx.create_child_with(
             "cpu",
-            Box::new(CpuGroup::new(Rc::clone(&self.config), self.look.clone())),
+            CpuGroup::new(Rc::clone(&self.config), self.look.clone()),
         );
 
         // DownscaleQuality: range 2-6
@@ -2097,7 +2088,7 @@ impl PerformanceGroup {
         let ds_update_config = Rc::clone(&self.config);
         let downscale_id = ctx.create_child_with(
             "downscaleQuality",
-            Box::new(FactorFieldPanel {
+            FactorFieldPanel {
                 scalar_field: ds_sf,
                 config_sig: ds_sig,
                 get_config_val: Some(Box::new(move || {
@@ -2108,7 +2099,7 @@ impl PerformanceGroup {
                         .GetValue() as f64
                 })),
                 subscribed_to_config: false,
-            }),
+            },
         );
         self.downscale_id = Some(downscale_id);
 
@@ -2129,14 +2120,14 @@ impl PerformanceGroup {
         let us_update_config = Rc::clone(&self.config);
         let upscale_id = ctx.create_child_with(
             "upscaleQuality",
-            Box::new(FactorFieldPanel {
+            FactorFieldPanel {
                 scalar_field: us_sf,
                 config_sig: us_sig,
                 get_config_val: Some(Box::new(move || {
                     *us_update_config.borrow().GetRec().UpscaleQuality.GetValue() as f64
                 })),
                 subscribed_to_config: false,
-            }),
+            },
         );
         self.upscale_id = Some(upscale_id);
     }
@@ -2346,7 +2337,7 @@ impl MouseGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("wheelzoom", Box::new(wz));
+        ctx.create_child_with("wheelzoom", wz);
 
         // wheelaccel
         let wa_config = Rc::clone(&self.config);
@@ -2384,7 +2375,7 @@ impl MouseGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("wheelaccel", Box::new(wa));
+        ctx.create_child_with("wheelaccel", wa);
 
         // zoom
         let zoom_config = Rc::clone(&self.config);
@@ -2415,7 +2406,7 @@ impl MouseGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("zoom", Box::new(zoom));
+        ctx.create_child_with("zoom", zoom);
 
         // scroll
         let scroll_config = Rc::clone(&self.config);
@@ -2446,16 +2437,16 @@ impl MouseGroup {
                 let _ = cm.TrySave(false);
             },
         ));
-        ctx.create_child_with("scroll", Box::new(scroll));
+        ctx.create_child_with("scroll", scroll);
 
         // MouseMiscGroup
         ctx.create_child_with(
             "misc",
-            Box::new(MouseMiscGroup::new(
+            MouseMiscGroup::new(
                 Rc::clone(&self.config),
                 self.look.clone(),
                 self.stick_possible,
-            )),
+            ),
         );
     }
 }
@@ -2590,7 +2581,7 @@ impl ButtonsPanel {
         // B-010 row 80: capture the click_signal BEFORE the button moves into
         // the child behavior (SignalId is Copy).
         self.bt_reset_sig = btn.click_signal;
-        let id = ctx.create_child_with("reset", Box::new(ButtonPanel { button: btn }));
+        let id = ctx.create_child_with("reset", ButtonPanel { button: btn });
         self.reset_id = Some(id);
     }
 
@@ -2603,7 +2594,7 @@ impl ButtonsPanel {
         // B-010 row 80: capture the click_signal BEFORE the button moves into
         // the child behavior (SignalId is Copy).
         self.bt_reset_sig = btn.click_signal;
-        let id = ctx.create_child_with("reset", Box::new(ButtonPanel { button: btn }));
+        let id = ctx.create_child_with("reset", ButtonPanel { button: btn });
         self.reset_id = Some(id);
     }
 }
@@ -2713,32 +2704,26 @@ impl ContentPanel {
     fn create_children(&self, ctx: &mut PanelCtx) {
         ctx.create_child_with(
             "mouse",
-            Box::new(MouseGroup::new(
+            MouseGroup::new(
                 Rc::clone(&self.config),
                 self.look.clone(),
                 self.stick_possible,
-            )),
+            ),
         );
 
         ctx.create_child_with(
             "keyboard",
-            Box::new(KBGroup::new(Rc::clone(&self.config), self.look.clone())),
+            KBGroup::new(Rc::clone(&self.config), self.look.clone()),
         );
 
         ctx.create_child_with(
             "kinetic",
-            Box::new(KineticGroup::new(
-                Rc::clone(&self.config),
-                self.look.clone(),
-            )),
+            KineticGroup::new(Rc::clone(&self.config), self.look.clone()),
         );
 
         ctx.create_child_with(
             "performance",
-            Box::new(PerformanceGroup::new(
-                Rc::clone(&self.config),
-                self.look.clone(),
-            )),
+            PerformanceGroup::new(Rc::clone(&self.config), self.look.clone()),
         );
     }
 }
@@ -2823,11 +2808,11 @@ impl emCoreConfigPanel {
     fn create_children(&mut self, ctx: &mut PanelCtx) {
         let content_id = ctx.create_child_with(
             "content",
-            Box::new(ContentPanel::new(
+            ContentPanel::new(
                 Rc::clone(&self.config),
                 self.look.clone(),
                 self.stick_possible,
-            )),
+            ),
         );
         self.layout.set_child_constraint(
             content_id,
@@ -2839,10 +2824,7 @@ impl emCoreConfigPanel {
 
         let buttons_id = ctx.create_child_with(
             "buttons",
-            Box::new(ButtonsPanel::new(
-                Rc::clone(&self.config),
-                self.look.clone(),
-            )),
+            ButtonsPanel::new(Rc::clone(&self.config), self.look.clone()),
         );
         self.layout.set_child_constraint(
             buttons_id,

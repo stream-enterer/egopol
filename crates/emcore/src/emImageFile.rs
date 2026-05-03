@@ -83,12 +83,12 @@ impl emImageFileModel {
         // most implementors are InitCtx/SchedCtx without App linkage. The engine
         // reads ctx.scheduler.file_update_signal directly at Cycle time and calls
         // ctx.connect() then, so no cached SignalId field is needed here.
-        let engine = Box::new(LoaderEngine {
+        let engine = LoaderEngine {
             model_weak,
             load_complete_signal,
             subscribed_to_broadcast: false,
-        });
-        let eid = ctx.register_engine(engine, Priority::Low, PanelScope::Framework);
+        };
+        let eid = ctx.register_engine(Box::new(engine), Priority::Low, PanelScope::Framework);
         ctx.wake_up(eid);
 
         model_rc

@@ -1747,7 +1747,7 @@ mod collect_views_tests {
             };
             emSubViewPanel::new(Rc::clone(parent_ctx), slot_id, wid, &mut sc)
         };
-        tree.set_behavior(slot_id, Box::new(svp));
+        tree.set_behavior(slot_id, svp);
     }
 
     fn build_outer_with_one_subview() -> (emView, PanelTree, crate::emScheduler::EngineScheduler) {

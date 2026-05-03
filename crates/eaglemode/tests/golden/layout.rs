@@ -41,7 +41,8 @@ fn run_layout(
         .map(|i| tree.create_child(root, &format!("c{i}"), None))
         .collect();
 
-    tree.set_behavior(root, behavior);
+    // Pre-erased: behavior is Box<dyn PanelBehavior> from caller; concrete type not recoverable.
+    tree.set_behavior_dyn(root, behavior, "<dyn PanelBehavior>");
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -111,7 +112,7 @@ fn run_linear_layout(
         layout.set_child_constraint(id, cc);
     }
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -312,7 +313,7 @@ fn layout_pack_weighted() {
         })
         .collect();
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -363,7 +364,7 @@ fn layout_pack_extreme() {
         })
         .collect();
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -545,7 +546,7 @@ fn layout_linear_min_cell_count() {
         );
     }
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -622,7 +623,7 @@ fn layout_linear_min_max_tallness() {
         },
     );
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -779,7 +780,7 @@ fn layout_pack_min_cell_count() {
         })
         .collect();
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -824,7 +825,7 @@ fn layout_pack_single() {
         },
     );
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -894,7 +895,7 @@ fn run_linear_layout_with_spacing(
         layout.set_child_constraint(id, cc);
     }
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -967,7 +968,7 @@ fn run_linear_layout_aligned(
         layout.set_child_constraint(id, cc);
     }
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
@@ -1021,7 +1022,7 @@ fn run_linear_layout_adaptive(
         );
     }
 
-    tree.set_behavior(root, Box::new(layout));
+    tree.set_behavior(root, layout);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
         let mut ctx = PanelCtx::new(&mut tree, root, 1.0);

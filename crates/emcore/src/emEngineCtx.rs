@@ -182,6 +182,7 @@ pub trait ConstructCtx {
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId;
+    #[track_caller]
     fn wake_up(&mut self, eng: EngineId);
     // Phase 3.5 Task 2 — closure-rail + identity accessors.
     fn pending_actions(&self) -> &Rc<RefCell<Vec<FrameworkDeferredAction>>>;
@@ -241,6 +242,7 @@ impl EngineCtx<'_> {
         self.scheduler.remove_signal(id);
     }
 
+    #[track_caller]
     pub fn wake_up(&mut self, id: EngineId) {
         self.scheduler.wake_up(id);
     }
@@ -257,9 +259,9 @@ impl EngineCtx<'_> {
         self.scheduler.remove_engine(id);
     }
 
-    pub fn register_engine(
+    pub fn register_engine<E: crate::emEngine::emEngine + 'static>(
         &mut self,
-        behavior: Box<dyn crate::emEngine::emEngine>,
+        behavior: E,
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId {
@@ -340,15 +342,16 @@ impl SchedCtx<'_> {
         self.scheduler.remove_engine(id);
     }
 
-    pub fn register_engine(
+    pub fn register_engine<E: crate::emEngine::emEngine + 'static>(
         &mut self,
-        behavior: Box<dyn crate::emEngine::emEngine>,
+        behavior: E,
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId {
         self.scheduler.register_engine(behavior, pri, scope)
     }
 
+    #[track_caller]
     pub fn wake_up(&mut self, eng: EngineId) {
         self.scheduler.wake_up(eng);
     }
@@ -382,9 +385,11 @@ impl ConstructCtx for EngineCtx<'_> {
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, scope)
+        self.scheduler
+            .register_engine_dyn(behavior, "<dyn emEngine>", pri, scope)
     }
 
+    #[track_caller]
     fn wake_up(&mut self, eng: EngineId) {
         self.scheduler.wake_up(eng);
     }
@@ -425,9 +430,11 @@ impl ConstructCtx for SchedCtx<'_> {
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, scope)
+        self.scheduler
+            .register_engine_dyn(behavior, "<dyn emEngine>", pri, scope)
     }
 
+    #[track_caller]
     fn wake_up(&mut self, eng: EngineId) {
         self.scheduler.wake_up(eng);
     }
@@ -468,9 +475,11 @@ impl ConstructCtx for InitCtx<'_> {
         pri: Priority,
         scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, scope)
+        self.scheduler
+            .register_engine_dyn(behavior, "<dyn emEngine>", pri, scope)
     }
 
+    #[track_caller]
     fn wake_up(&mut self, eng: EngineId) {
         self.scheduler.wake_up(eng);
     }
@@ -523,9 +532,10 @@ impl ConstructCtx for PanelCtx<'_> {
         self.scheduler
             .as_deref_mut()
             .expect("PanelCtx: scheduler required for ConstructCtx::register_engine")
-            .register_engine(behavior, pri, scope)
+            .register_engine_dyn(behavior, "<dyn emEngine>", pri, scope)
     }
 
+    #[track_caller]
     fn wake_up(&mut self, eng: EngineId) {
         if let Some(sched) = self.scheduler.as_deref_mut() {
             sched.wake_up(eng);
@@ -796,7 +806,21 @@ impl<'a> PanelCtx<'a> {
     /// Drained by `PanelCycleEngine` after `Cycle` returns; the drain calls
     /// `view.InvalidatePainting(sched, tree, panel_id)`, preserving the
     /// observable effect of C++ `emPanel::InvalidatePainting()` (no-arg form).
+    #[track_caller]
     pub fn request_invalidate_self(&mut self) {
+        // Phase A 7-LOOP-CHAIN: INVAL_REQ per request.
+        let caller = std::panic::Location::caller();
+        let engine_id = self.tree.GetRec(self.id).and_then(|p| p.engine_id);
+        let line = format!(
+            "INVAL_REQ|wall_us={}|engine_id={:?}|panel_id={:?}|source={}:{}\n",
+            crate::emInstr::wall_us(),
+            engine_id,
+            self.id,
+            caller.file(),
+            caller.line(),
+        );
+        crate::emInstr::write_line(&line);
+
         self.invalidate_self_requested = true;
     }
 
@@ -811,6 +835,7 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Wake this panel's scheduler engine.
+    #[track_caller]
     pub fn wake_up(&mut self) {
         let id = self.id;
         self.wake_up_panel(id);
@@ -818,6 +843,7 @@ impl<'a> PanelCtx<'a> {
 
     /// Wake another panel's scheduler engine.
     /// C++ equivalent: panel->GetView().UpdateEngine->WakeUp().
+    #[track_caller]
     pub fn wake_up_panel(&mut self, id: PanelId) {
         let Some(panel) = self.tree.GetRec(id) else {
             return;
@@ -875,12 +901,37 @@ impl<'a> PanelCtx<'a> {
             .create_child(self.id, name, self.scheduler.as_deref_mut())
     }
 
-    /// Create a child with a behavior.
-    pub fn create_child_with(&mut self, name: &str, behavior: Box<dyn PanelBehavior>) -> PanelId {
+    /// Create a child with a behavior, capturing the concrete type name.
+    ///
+    /// Preferred entry point for callers that hold the concrete type at the
+    /// call site. The monomorphized `type_name` flows through to `PanelData`
+    /// for instrumentation.
+    pub fn create_child_with<B: PanelBehavior + 'static>(
+        &mut self,
+        name: &str,
+        behavior: B,
+    ) -> PanelId {
+        let type_name = std::any::type_name::<B>();
+        self.create_child_with_dyn(name, Box::new(behavior), type_name)
+    }
+
+    /// Create a child with a pre-erased behavior box.
+    ///
+    /// RUST_ONLY: (language-forced-utility) Parallel entry point for call sites
+    /// where the concrete type has already been erased. The caller supplies an
+    /// explicit `behavior_type_name`; pass `"<dyn PanelBehavior>"` when the
+    /// concrete type is not recoverable.
+    pub fn create_child_with_dyn(
+        &mut self,
+        name: &str,
+        behavior: Box<dyn PanelBehavior>,
+        behavior_type_name: &'static str,
+    ) -> PanelId {
         let child_id = self
             .tree
             .create_child(self.id, name, self.scheduler.as_deref_mut());
-        self.tree.set_behavior(child_id, behavior);
+        self.tree
+            .set_behavior_dyn(child_id, behavior, behavior_type_name);
         child_id
     }
 
@@ -1242,11 +1293,7 @@ mod tests {
         };
 
         let sig = sc.create_signal();
-        let eng = sc.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eng = sc.register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         sc.connect(sig, eng);
         sc.disconnect(sig, eng);

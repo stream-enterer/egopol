@@ -941,7 +941,7 @@ impl emColorField {
             inner_h: 0.04,
             inner_v: 0.1,
         };
-        let layout_id = ctx.create_child_with("emColorField::InnerStuff", Box::new(layout));
+        let layout_id = ctx.create_child_with("emColorField::InnerStuff", layout);
 
         // C++ UpdateExpAppearance: create a modified look where bg_color and
         // fg_color are swapped to input/output variants based on editability,
@@ -986,7 +986,7 @@ impl emColorField {
             panel
                 .scalar_field
                 .SetTextOfValueFunc(Box::new(|val, _iv| format!("{}%", val as f64 / 100.0)));
-            ctx.tree.set_behavior(child, Box::new(panel));
+            ctx.tree.set_behavior(child, panel);
             child
         };
 
@@ -1013,7 +1013,7 @@ impl emColorField {
                 .SetTextOfValueFunc(Box::new(|val, _iv| format!("{}%", val as f64 / 100.0)));
             panel.scalar_field.border_mut().description =
                 "The lower the more transparent.".to_string();
-            ctx.tree.set_behavior(child, Box::new(panel));
+            ctx.tree.set_behavior(child, panel);
             child
         };
 
@@ -1055,7 +1055,7 @@ impl emColorField {
                     format!("{}", val as f64 / 100.0)
                 }
             }));
-            ctx.tree.set_behavior(child, Box::new(panel));
+            ctx.tree.set_behavior(child, panel);
         }
 
         create_pct_sf(ctx, layout_id, "s", "Saturation", exp.sf_sat);
@@ -1072,7 +1072,7 @@ impl emColorField {
             "Here you can enter a color name like 'powder blue',\n\
              or a hexadecimal RGB value like '#c88' or '#73c81D'."
                 .to_string();
-        ctx.tree.set_behavior(tf_child, Box::new(tf_panel));
+        ctx.tree.set_behavior(tf_child, tf_panel);
     }
 
     /// Layout children matching C++ `emColorField::LayoutChildren()`.

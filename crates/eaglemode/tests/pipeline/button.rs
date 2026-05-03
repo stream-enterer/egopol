@@ -407,8 +407,7 @@ fn bp9_vct_min_ext_guard_mouse() {
     h.tree.set_focusable(panel_id, true);
     // Tiny layout: 0.1% of root in each dimension → ~0.8px at 800x600.
     h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001, 1.0, None);
-    h.tree
-        .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
+    h.tree.set_behavior(panel_id, ButtonPanel { widget: btn });
 
     h.tick_n(5);
     let mut compositor = SoftwareCompositor::new(800, 600);
@@ -446,8 +445,7 @@ fn bp9_vct_min_ext_guard_enter() {
     let panel_id = h.tree.create_child(root, "button", None);
     h.tree.set_focusable(panel_id, true);
     h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001, 1.0, None);
-    h.tree
-        .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
+    h.tree.set_behavior(panel_id, ButtonPanel { widget: btn });
 
     h.tick_n(5);
     let mut compositor = SoftwareCompositor::new(800, 600);

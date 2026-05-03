@@ -66,11 +66,9 @@ fn stocks_file_panel_allocates_vir_file_state_signal_on_first_cycle() {
     // and connects the panel's engine to it.
     let mut h = TestViewHarness::new();
     let mut panel = emStocksFilePanel::default();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     assert!(
         panel.vir_file_state_signal_for_test().is_none(),
@@ -100,11 +98,9 @@ fn stocks_file_panel_allocates_save_timer_signal_on_first_cycle() {
     // to it (proxy-engine pattern per spec I-3).
     let mut h = TestViewHarness::new();
     let mut panel = emStocksFilePanel::default();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let pre = panel.save_timer_signal_for_test();
     assert_eq!(
@@ -137,11 +133,9 @@ fn stocks_file_panel_save_timer_fires_drives_save() {
     // and calls `save_on_timer_fire` which clears dirty.
     let mut h = TestViewHarness::new();
     let mut panel = emStocksFilePanel::default();
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // First Cycle — allocates SaveTimer signal/timer and subscribes.
     let _ = cycle_panel(&mut h, eid, &mut panel);

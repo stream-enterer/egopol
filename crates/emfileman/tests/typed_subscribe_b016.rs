@@ -75,11 +75,9 @@ fn dir_panel_allocates_vir_file_state_signal_on_first_cycle() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // Prefix unallocated before first Cycle.
     assert!(
@@ -108,11 +106,9 @@ fn dir_panel_cycle_inner_fires_vir_file_state_signal_on_state_change() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // Run first cycle to wire subscribes and stabilize state.
     let _ = cycle_panel(&mut h, eid, &mut panel);
@@ -148,11 +144,9 @@ fn dir_stat_panel_allocates_vir_file_state_signal_on_first_cycle() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirStatPanel::new(Rc::clone(&ctx));
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     assert!(panel.vir_file_state_signal_for_test().is_null());
     let _ = cycle_panel(&mut h, eid, &mut panel);
@@ -173,11 +167,9 @@ fn dir_stat_panel_cycle_inner_propagates_state_change() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirStatPanel::new(Rc::clone(&ctx));
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let _ = cycle_panel(&mut h, eid, &mut panel);
     panel.set_custom_error_for_test("stat-b016");
@@ -203,11 +195,9 @@ fn file_link_panel_allocates_vir_file_state_signal_on_first_cycle() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     assert!(panel.vir_file_state_signal_for_test().is_null());
     let _ = cycle_panel(&mut h, eid, &mut panel);
@@ -243,11 +233,9 @@ fn file_link_panel_m001_vfs_branch_sets_do_update_only() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let _ = cycle_panel(&mut h, eid, &mut panel); // first cycle: subscribes
     panel.reset_flags_for_test(false, true); // clean baseline
@@ -277,11 +265,9 @@ fn file_link_panel_m001_update_signal_branch_sets_both() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // Harness does not pre-allocate the file_update_signal (production wires
     // it in App::new); allocate it here so AcquireUpdateSignalModel returns a
@@ -320,11 +306,9 @@ fn file_link_panel_m001_config_branch_does_not_set_do_update() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let _ = cycle_panel(&mut h, eid, &mut panel);
     panel.reset_flags_for_test(false, true);
@@ -369,11 +353,9 @@ fn file_link_panel_m001_model_branch_sets_do_update_only() {
     );
     panel.set_link_model(Rc::clone(&model));
 
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let _ = cycle_panel(&mut h, eid, &mut panel); // wires model_subscribed
     panel.reset_flags_for_test(false, true);
@@ -424,11 +406,9 @@ fn file_link_panel_cycle_inner_propagates_state_change() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let eid = h
+        .scheduler
+        .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     let _ = cycle_panel(&mut h, eid, &mut panel);
     panel.set_custom_error_for_test("link-b016");

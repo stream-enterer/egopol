@@ -275,7 +275,7 @@ impl emDirPanel {
 
                 for entry in &visible {
                     let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), entry.clone());
-                    ctx.create_child_with(entry.GetName(), Box::new(panel));
+                    ctx.create_child_with(entry.GetName(), panel);
                 }
 
                 self.child_count = visible_count;
@@ -605,7 +605,7 @@ impl PanelBehavior for emDirPanel {
             )
             .with_dir_path(&self.path)
         };
-        Some(parent_ctx.create_child_with(name, Box::new(panel)))
+        Some(parent_ctx.create_child_with(name, panel))
     }
 
     fn GetIconFileName(&self) -> Option<String> {
@@ -844,7 +844,7 @@ mod tests {
             );
             let child_id = ctx.create_child_with(
                 "content",
-                Box::new(emDirPanel::new(Rc::clone(&emctx), "/tmp".to_string())),
+                emDirPanel::new(Rc::clone(&emctx), "/tmp".to_string()),
             );
             ctx.wake_up_panel(child_id);
         };
@@ -916,7 +916,7 @@ mod tests {
             );
             let cid = ctx.create_child_with(
                 "content",
-                Box::new(emDirPanel::new(Rc::clone(&emctx), "/tmp".to_string())),
+                emDirPanel::new(Rc::clone(&emctx), "/tmp".to_string()),
             );
             ctx.wake_up_panel(cid);
             cid
@@ -1053,7 +1053,7 @@ mod tests {
                 if flags.contains(NoticeFlags::VIEWING_CHANGED) && !self.spawned {
                     let child_id = ctx.create_child_with(
                         "content",
-                        Box::new(emDirPanel::new(Rc::clone(&self.emctx), self.path.clone())),
+                        emDirPanel::new(Rc::clone(&self.emctx), self.path.clone()),
                     );
                     ctx.wake_up_panel(child_id);
                     self.spawned = true;
@@ -1071,11 +1071,11 @@ mod tests {
         // Insert NoticeSpawner behavior for parent
         tree.set_behavior(
             parent,
-            Box::new(NoticeSpawner {
+            NoticeSpawner {
                 emctx: Rc::clone(&emctx),
                 path: "/tmp".to_string(),
                 spawned: false,
-            }),
+            },
         );
 
         // Queue VIEWING_CHANGED on parent so UpdateEngineClass delivers it
@@ -1224,7 +1224,7 @@ mod tests {
                 if flags.contains(NoticeFlags::VIEWING_CHANGED) && self.child_id.is_none() {
                     let id = ctx.create_child_with(
                         "content",
-                        Box::new(emDirPanel::new(Rc::clone(&self.emctx), self.path.clone())),
+                        emDirPanel::new(Rc::clone(&self.emctx), self.path.clone()),
                     );
                     ctx.wake_up_panel(id);
                     self.child_id = Some(id);
@@ -1239,11 +1239,11 @@ mod tests {
         let parent = tree.create_child(root, "parent", None);
         tree.set_behavior(
             parent,
-            Box::new(NoticeSpawner {
+            NoticeSpawner {
                 emctx: Rc::clone(&emctx),
                 path: "/tmp".to_string(),
                 child_id: None,
-            }),
+            },
         );
 
         let mut sched = EngineScheduler::new();
@@ -1412,7 +1412,7 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("dep_root", false);
         tree.init_panel_view(root, None);
-        tree.set_behavior(root, Box::new(dep));
+        tree.set_behavior(root, dep);
         // Set seek so should_create bypasses geometry check
         tree.set_seek_pos_pub(root, CONTENT_NAME);
 
@@ -1589,7 +1589,7 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("dep_root", false);
         tree.init_panel_view(root, None);
-        tree.set_behavior(root, Box::new(dep));
+        tree.set_behavior(root, dep);
         tree.set_seek_pos_pub(root, CONTENT_NAME);
 
         let mut sched = EngineScheduler::new();
@@ -1750,7 +1750,7 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("dep_root", false);
         tree.init_panel_view(root, None);
-        tree.set_behavior(root, Box::new(dep));
+        tree.set_behavior(root, dep);
         tree.set_seek_pos_pub(root, CONTENT_NAME);
 
         let mut sched = EngineScheduler::new();
@@ -2027,10 +2027,8 @@ mod tests {
                 &notice_cb,
                 &notice_pa,
             );
-            let cid = ctx.create_child_with(
-                "content",
-                Box::new(emDirPanel::new(Rc::clone(&emctx), path.clone())),
-            );
+            let cid =
+                ctx.create_child_with("content", emDirPanel::new(Rc::clone(&emctx), path.clone()));
             ctx.wake_up_panel(cid);
             cid
         };

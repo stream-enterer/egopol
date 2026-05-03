@@ -20,7 +20,7 @@ macro_rules! require_golden {
 /// Attach InputTrackingBehavior to a panel and return the shared flag.
 fn attach_input(tree: &mut PanelTree, id: PanelId) -> Rc<RefCell<bool>> {
     let flag = Rc::new(RefCell::new(false));
-    tree.set_behavior(id, Box::new(InputTrackingBehavior::new(flag.clone())));
+    tree.set_behavior(id, InputTrackingBehavior::new(flag.clone()));
     flag
 }
 

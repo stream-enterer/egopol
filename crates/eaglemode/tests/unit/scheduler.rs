@@ -51,29 +51,29 @@ fn engines_execute_in_priority_order() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let low = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "very_low",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::VeryLow,
         PanelScope::Framework,
     );
     let med = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "medium",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
     let high = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "very_high",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::VeryHigh,
         PanelScope::Framework,
     );
@@ -101,11 +101,11 @@ fn signal_chaining_within_time_slice() {
 
     // emEngine B: low priority, woken by signal
     let eng_b = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "B",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Low,
         PanelScope::Framework,
     );
@@ -128,11 +128,11 @@ fn timer_fires_signal() {
 
     let sig = sched.create_signal();
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "timer_target",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -155,11 +155,11 @@ fn remove_engine_cleans_up() {
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let eng = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "removed",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
@@ -191,21 +191,21 @@ fn instant_signal_chaining_via_engine() {
     }
 
     let eng_b = sched.register_engine(
-        Box::new(RecordingEngine {
+        RecordingEngine {
             label: "B_runs",
             log: Rc::clone(&log),
             stay_awake: false,
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );
     sched.connect(sig, eng_b);
 
     let eng_a = sched.register_engine(
-        Box::new(FiringEngine {
+        FiringEngine {
             sig,
             log: Rc::clone(&log),
-        }),
+        },
         Priority::High,
         PanelScope::Framework,
     );
@@ -243,12 +243,12 @@ fn is_signaled_distinguishes_signals() {
     let a_fired = Rc::new(RefCell::new(false));
     let b_fired = Rc::new(RefCell::new(false));
     let eng = sched.register_engine(
-        Box::new(CheckSignalEngine {
+        CheckSignalEngine {
             sig_a,
             sig_b,
             a_fired: Rc::clone(&a_fired),
             b_fired: Rc::clone(&b_fired),
-        }),
+        },
         Priority::Medium,
         PanelScope::Framework,
     );

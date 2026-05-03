@@ -364,13 +364,13 @@ impl emMainControlPanel {
         self.bt_auto_hide_slider = bt_auto_hide_slider_opt.clone();
 
         // ── lMain: wraps general + bookmarks (child 0 of top-level) ──────
-        let lmain = Box::new(LMainPanel::new(
+        let lmain = LMainPanel::new(
             Rc::clone(&self.ctx),
             Rc::clone(&look),
             Rc::clone(&signals_handoff),
             Rc::clone(&self.autoplay_model),
             bt_fullscreen_opt,
-        ));
+        );
         let lmain_id = ctx.create_child_with("lMain", lmain);
         self.lmain_panel = Some(lmain_id);
 
@@ -690,18 +690,18 @@ impl LMainPanel {
 
     fn create_children(&mut self, ctx: &mut PanelCtx) {
         // Child 0: general (lAbtCfgCmd) — weight 4.71
-        let general = Box::new(GeneralPanel::new(
+        let general = GeneralPanel::new(
             Rc::clone(&self.ctx),
             Rc::clone(&self.look),
             Rc::clone(&self.button_signals_handoff),
             Rc::clone(&self.autoplay_model),
             self.bt_fullscreen.clone(),
-        ));
+        );
         let general_id = ctx.create_child_with("general", general);
         self.general_panel = Some(general_id);
 
         // Child 1: bookmarks — weight 6.5
-        let bookmarks = Box::new(emBookmarksPanel::new(Rc::clone(&self.ctx)));
+        let bookmarks = emBookmarksPanel::new(Rc::clone(&self.ctx));
         let bm_id = ctx.create_child_with("bookmarks", bookmarks);
         self.bookmarks_panel = Some(bm_id);
 
@@ -790,17 +790,17 @@ impl GeneralPanel {
 
     fn create_children(&mut self, ctx: &mut PanelCtx) {
         // Child 0: About + CoreConfig (lAbtCfg)
-        let about_cfg = Box::new(AboutCfgPanel::new(Rc::clone(&self.ctx)));
+        let about_cfg = AboutCfgPanel::new(Rc::clone(&self.ctx));
         let about_cfg_id = ctx.create_child_with("t", about_cfg);
         self.about_cfg_panel = Some(about_cfg_id);
 
         // Child 1: Main Commands (grCommands)
-        let commands = Box::new(CommandsPanel::new(
+        let commands = CommandsPanel::new(
             Rc::clone(&self.look),
             Rc::clone(&self.button_signals_handoff),
             Rc::clone(&self.autoplay_model),
             self.bt_fullscreen.clone(),
-        ));
+        );
         let commands_id = ctx.create_child_with("commands", commands);
         self.commands_panel = Some(commands_id);
 
@@ -867,11 +867,11 @@ impl AboutCfgPanel {
 
     fn create_children(&mut self, ctx: &mut PanelCtx) {
         // Child 0: About panel (placeholder label).
-        let about = Box::new(AboutPanel);
+        let about = AboutPanel;
         let about_id = ctx.create_child_with("about", about);
 
         // Child 1: Core config panel (placeholder).
-        let cfg = Box::new(CoreConfigPlaceholder);
+        let cfg = CoreConfigPlaceholder;
         let cfg_id = ctx.create_child_with("core config", cfg);
 
         // C++ lAbtCfg: SetChildWeight(0, 1.15) SetChildWeight(1, 1.85)
@@ -1046,8 +1046,7 @@ impl CommandsPanel {
         };
         btn_nw.SetDescription("Create a new window showing the same location.\n\nHotkey: F4");
         let new_window_sig = btn_nw.click_signal;
-        let nw_id =
-            ctx.create_child_with("new window", Box::new(MainButtonPanel { button: btn_nw }));
+        let nw_id = ctx.create_child_with("new window", MainButtonPanel { button: btn_nw });
 
         // ── BtFullscreen ──
         // Use the shared Rc<RefCell<emCheckButton>> threaded from emMainControlPanel
@@ -1065,9 +1064,9 @@ impl CommandsPanel {
         };
         let fs_id = ctx.create_child_with(
             "fullscreen",
-            Box::new(MainCheckButtonPanel {
+            MainCheckButtonPanel {
                 check_button: bt_fs,
-            }),
+            },
         );
 
         // ── BtReload ──
@@ -1079,14 +1078,11 @@ impl CommandsPanel {
             "Reload files and directories which are currently shown by this program.\n\nHotkey: F5",
         );
         let reload_sig = btn_reload.click_signal;
-        let reload_id =
-            ctx.create_child_with("reload", Box::new(MainButtonPanel { button: btn_reload }));
+        let reload_id = ctx.create_child_with("reload", MainButtonPanel { button: btn_reload });
 
         // ── Autoplay control panel ──
-        let autoplay = Box::new(emAutoplayControlPanel::new(
-            Rc::clone(&look),
-            Rc::clone(&self.autoplay_model),
-        ));
+        let autoplay =
+            emAutoplayControlPanel::new(Rc::clone(&look), Rc::clone(&self.autoplay_model));
         let autoplay_id = ctx.create_child_with("autoplay", autoplay);
 
         // ── Close / Quit (lCloseQuit) ──
@@ -1096,8 +1092,7 @@ impl CommandsPanel {
         };
         btn_close.SetDescription("Close this window.\n\nHotkey: Alt+F4");
         let close_sig = btn_close.click_signal;
-        let close_id =
-            ctx.create_child_with("close", Box::new(MainButtonPanel { button: btn_close }));
+        let close_id = ctx.create_child_with("close", MainButtonPanel { button: btn_close });
 
         let mut btn_quit = {
             let mut sched = ctx.as_sched_ctx().expect("sched");
@@ -1107,7 +1102,7 @@ impl CommandsPanel {
             "Close all windows of this process (and terminate this process).\n\nHotkey: Shift+Alt+F4",
         );
         let quit_sig = btn_quit.click_signal;
-        let quit_id = ctx.create_child_with("quit", Box::new(MainButtonPanel { button: btn_quit }));
+        let quit_id = ctx.create_child_with("quit", MainButtonPanel { button: btn_quit });
 
         // Hand off the four commands buttons' click signals to emMainControlPanel.
         self.button_signals_handoff.set(ButtonSignals {

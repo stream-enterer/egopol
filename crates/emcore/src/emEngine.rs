@@ -46,4 +46,9 @@ pub(crate) struct EngineData {
     pub behavior: Option<Box<dyn emEngine>>,
     /// Clock value after last Cycle() call. Used by `is_signaled`.
     pub clock: u64,
+    /// RUST_ONLY: (language-forced-utility) Concrete type name captured at the
+    /// monomorphized register_engine<E> call site. Required because Rust trait
+    /// objects do not preserve concrete-type information through their vtables;
+    /// C++ has full RTTI. Used exclusively by instrumentation.
+    pub type_name: &'static str,
 }

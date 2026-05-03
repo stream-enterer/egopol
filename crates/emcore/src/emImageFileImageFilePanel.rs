@@ -335,12 +335,12 @@ mod tests {
         let root_ctx = crate::emContext::emContext::NewRoot();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("b007_row139_inner");
-        let engine = Box::new(PanelEngine {
+        let engine = PanelEngine {
             panel: panel_rc.clone(),
             tree,
             root,
             cycles_run: 0,
-        });
+        };
         let eid = sched.register_engine(engine, Priority::Low, PanelScope::Framework);
         sched.wake_up(eid);
 

@@ -1257,11 +1257,9 @@ mod tests {
         }
 
         let mut h = TestViewHarness::new();
-        let eid = h.scheduler.register_engine(
-            Box::new(NoopEngine),
-            Priority::Medium,
-            PanelScope::Framework,
-        );
+        let eid = h
+            .scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksItemPanel::for_test();
         assert!(!panel.subscribed_init);
@@ -1914,9 +1912,9 @@ mod tests {
     #[test]
     fn item_panel_first_cycle_wires_g2_g4_signals() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksItemPanel::for_test();
         assert!(!panel.subscribed_init);
@@ -1943,9 +1941,9 @@ mod tests {
     #[test]
     fn item_panel_reacts_to_config_change_signal() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksItemPanel::for_test();
         let mut tree = emcore::emPanelTree::PanelTree::new();
@@ -1982,9 +1980,9 @@ mod tests {
     #[test]
     fn item_panel_reacts_to_selected_date_signal() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksItemPanel::for_test();
         let mut tree = emcore::emPanelTree::PanelTree::new();
@@ -2017,9 +2015,9 @@ mod tests {
     #[test]
     fn item_panel_subscribed_widgets_after_auto_expand() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let mut panel = emStocksItemPanel::for_test();
         assert!(!panel.subscribed_widgets);
@@ -2056,9 +2054,9 @@ mod tests {
     #[test]
     fn item_panel_name_text_signal_writes_stock_rec() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         // Build with a shared FileModel so we can observe rec writes.
         let model = Rc::new(RefCell::new(emStocksFileModel::new(
@@ -2122,9 +2120,9 @@ mod tests {
     #[test]
     fn item_panel_owning_shares_check_signal_invokes_toggle() {
         let mut h = TestViewHarness::new();
-        let eid =
-            h.scheduler
-                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+        let eid = h
+            .scheduler
+            .register_engine(NoopE, Priority::Medium, PanelScope::Framework);
 
         let model = Rc::new(RefCell::new(emStocksFileModel::new(
             std::path::PathBuf::from("/tmp/ip_phase_d_owning.emStocks"),

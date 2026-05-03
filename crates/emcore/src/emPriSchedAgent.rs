@@ -92,8 +92,7 @@ impl PriSchedModel {
         let engine = PriSchedEngine {
             inner: Rc::clone(&inner),
         };
-        let engine_id =
-            scheduler.register_engine(Box::new(engine), Priority::Low, PanelScope::Framework);
+        let engine_id = scheduler.register_engine(engine, Priority::Low, PanelScope::Framework);
         inner.borrow_mut().engine_id = Some(engine_id);
 
         Self { inner, engine_id }

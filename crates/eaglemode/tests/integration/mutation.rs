@@ -102,10 +102,8 @@ fn deliver_notices_with_new_panels() {
     assert!(h.tree.contains(child_id));
 
     // Attach a recording behavior to the child.
-    h.tree.set_behavior(
-        child_id,
-        Box::new(RecordingBehavior::new(Rc::clone(&new_panel_log))),
-    );
+    h.tree
+        .set_behavior(child_id, RecordingBehavior::new(Rc::clone(&new_panel_log)));
 
     // Trigger a layout change on the child.
     h.tree.Layout(child_id, 0.0, 0.0, 0.9, 0.9, 1.0, None);
@@ -142,7 +140,7 @@ fn delete_all_children_during_layout() {
             *deleted_clone.borrow_mut() = true;
         }
     }));
-    h.tree.set_behavior(parent, Box::new(behavior));
+    h.tree.set_behavior(parent, behavior);
 
     h.tick();
 

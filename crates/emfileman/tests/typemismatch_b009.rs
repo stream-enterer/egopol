@@ -72,11 +72,9 @@ fn drain_all_engines(h: &mut TestViewHarness) {
 fn accessor_get_selection_signal_lazy_alloc_and_idempotent() {
     let mut h = TestViewHarness::new();
     let model = emFileManModel::Acquire(&Rc::clone(&h.root_context));
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let sig = {
         let mut ectx = h.engine_ctx(dummy_eid);
         model.borrow().GetSelectionSignal(&mut ectx)
@@ -94,11 +92,9 @@ fn accessor_get_selection_signal_lazy_alloc_and_idempotent() {
 fn accessor_get_commands_signal_lazy_alloc_and_idempotent() {
     let mut h = TestViewHarness::new();
     let model = emFileManModel::Acquire(&Rc::clone(&h.root_context));
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let sig = {
         let mut ectx = h.engine_ctx(dummy_eid);
         model.borrow().GetCommandsSignal(&mut ectx)
@@ -116,11 +112,9 @@ fn accessor_get_commands_signal_lazy_alloc_and_idempotent() {
 fn accessor_view_config_get_change_signal_lazy_alloc_and_idempotent() {
     let mut h = TestViewHarness::new();
     let vc = emFileManViewConfig::Acquire(&Rc::clone(&h.root_context));
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let sig = {
         let mut ectx = h.engine_ctx(dummy_eid);
         vc.borrow().GetChangeSignal(&mut ectx)
@@ -210,11 +204,9 @@ fn click_through_selection_signal_drives_sel_info_panel_reset() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileManSelInfoPanel::new(Rc::clone(&ctx));
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // First Cycle: subscribed_init=false → allocate + connect.
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
@@ -253,11 +245,9 @@ fn click_through_change_signal_drives_dir_panel_rebuild() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // First Cycle: subscribe + alloc (and stub-load model — emDirPanel acquires
     // its own dir_model, registering a real loader engine; harmless here).
@@ -301,11 +291,9 @@ fn click_through_commands_signal_drives_control_panel_react() {
         let mut ic = h.init_ctx();
         emFileManControlPanel::new(&mut ic, Rc::clone(&ctx))
     };
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
 
     // First Cycle: subscribe + alloc (selection, commands, change all 3).
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
@@ -362,11 +350,9 @@ fn construction_alt_panel_subscribed_init_starts_false() {
     let ctx = Rc::clone(&h.root_context);
     let entry = emDirEntry::from_path("/tmp");
     let mut panel = emDirEntryAltPanel::new(Rc::clone(&ctx), entry, 1);
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     // First Cycle subscribes both signals; idempotent on second call.
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
     let model = emFileManModel::Acquire(&ctx);
@@ -387,11 +373,9 @@ fn construction_dir_entry_panel_first_cycle_subscribes() {
     let ctx = Rc::clone(&h.root_context);
     let entry = emDirEntry::from_path("/tmp");
     let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
     let model = emFileManModel::Acquire(&ctx);
     let vc = emFileManViewConfig::Acquire(&ctx);
@@ -409,11 +393,9 @@ fn construction_dir_stat_panel_first_cycle_subscribes() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emDirStatPanel::new(Rc::clone(&ctx));
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
     let vc = emFileManViewConfig::Acquire(&ctx);
     {
@@ -429,11 +411,9 @@ fn construction_file_link_panel_first_cycle_subscribes() {
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
-    let dummy_eid = h.scheduler.register_engine(
-        Box::new(NoopEngine),
-        Priority::Medium,
-        PanelScope::Framework,
-    );
+    let dummy_eid =
+        h.scheduler
+            .register_engine(NoopEngine, Priority::Medium, PanelScope::Framework);
     let _ = cycle_panel(&mut h, dummy_eid, &mut panel);
     let vc = emFileManViewConfig::Acquire(&ctx);
     {

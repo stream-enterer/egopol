@@ -93,7 +93,7 @@ impl emDialog {
         let mut tree = crate::emPanelTree::PanelTree::new();
         let root_panel_id = tree.create_root("dlg", false);
         let dlg_panel = DlgPanel::new(title, Rc::clone(&look), finish_signal);
-        tree.set_behavior(root_panel_id, Box::new(dlg_panel));
+        tree.set_behavior(root_panel_id, dlg_panel);
 
         // Wrap in a pending top-level window.
         let mut window = crate::emWindow::emWindow::new_top_level_pending(
@@ -190,7 +190,7 @@ impl emDialog {
         // Create the DlgButton child panel. C++ emDialog.cpp:63 names buttons
         // by ButtonNum: `emString::Format("%d", ButtonNum)`.
         let btn_id = tree.create_child(self.root_panel_id, &button_num.to_string(), None);
-        tree.set_behavior(btn_id, Box::new(btn));
+        tree.set_behavior(btn_id, btn);
     }
 
     /// Port of C++ `emDialog::AddOKButton` — `AddPositiveButton("OK")`.
@@ -396,10 +396,10 @@ impl emDialog {
                 .pending
                 .as_mut()
                 .expect("ShowMessage: pre-show only — pending must be Some");
-            pending.window.tree_mut().set_behavior(
-                content_id,
-                Box::new(crate::emLabel::LabelBehavior { label }),
-            );
+            pending
+                .window
+                .tree_mut()
+                .set_behavior(content_id, crate::emLabel::LabelBehavior { label });
         }
         dlg.show(ctx);
         dlg
@@ -533,7 +533,12 @@ impl emDialog {
             .pending
             .as_mut()
             .expect("set_content_behavior after show");
-        pending.window.tree_mut().set_behavior(content_id, behavior);
+        // Pre-erased: this function's public signature accepts Box<dyn PanelBehavior>
+        // from arbitrary callers; concrete type is not recoverable here.
+        pending
+            .window
+            .tree_mut()
+            .set_behavior_dyn(content_id, behavior, "<dyn PanelBehavior>");
     }
 
     /// Apply view and window flags to the pending dialog window before `show()`.
@@ -1440,7 +1445,7 @@ mod tests {
         let focus_sig = app.scheduler.create_signal();
         let geom_sig = app.scheduler.create_signal();
         let dlg_panel = DlgPanel::new("Test", emLook::new(), finish_sig);
-        tree.set_behavior(root_id, Box::new(dlg_panel));
+        tree.set_behavior(root_id, dlg_panel);
 
         let mut window = crate::emWindow::emWindow::new_top_level_pending(
             Rc::clone(&app.context),
@@ -1469,9 +1474,9 @@ mod tests {
         }
         let hits: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
         let probe_id = app.scheduler.register_engine(
-            Box::new(FinishProbe {
+            FinishProbe {
                 hits: Rc::clone(&hits),
-            }),
+            },
             crate::emEngine::Priority::Medium,
             PanelScope::Framework,
         );
@@ -2072,7 +2077,7 @@ mod tests {
         let mut dlg_panel = DlgPanel::new("Test", emLook::new(), finish_sig);
         // Enable auto-delete before install.
         dlg_panel.auto_delete = true;
-        tree.set_behavior(root_id, Box::new(dlg_panel));
+        tree.set_behavior(root_id, dlg_panel);
 
         let mut window = crate::emWindow::emWindow::new_top_level_pending(
             Rc::clone(&app.context),
@@ -2607,7 +2612,7 @@ mod tests {
             counter_clone.set(counter_clone.get() + 1);
             false
         }));
-        tree.set_behavior(root_id, Box::new(dlg_panel));
+        tree.set_behavior(root_id, dlg_panel);
 
         let mut window = crate::emWindow::emWindow::new_top_level_pending(
             Rc::clone(&app.context),
