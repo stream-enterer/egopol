@@ -1425,16 +1425,6 @@ impl ApplicationHandler<CtrlMsg> for App {
             // SubViewPortClass::InvalidatePainting → SuperPanel → parent view).
             win.view_mut().collect_parent_invalidation(&mut tree);
 
-            // Invalidate the active (focused) panel every frame so that
-            // cursor blink and other clock-driven updates repaint. This
-            // matches C++ emCore where Input() is called for all viewed
-            // panels on every frame, and emTextField invalidates itself
-            // when the blink timer fires.
-            let active_id = win.view().GetActivePanel();
-            if let Some(active_id) = active_id {
-                win.view_mut().InvalidatePainting(&mut sc, &tree, active_id);
-            }
-
             // Phase 3.5.A Task 7: put the tree back on the window.
             win.put_tree(tree);
 
