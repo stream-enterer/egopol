@@ -634,15 +634,23 @@ impl emWindow {
             }
         }
 
+        let _instr_dirty_done = crate::emInstr::wall_us();
+        let _instr_path: &str;
+        let _instr_paint_t0;
+        let _instr_paint_t1;
+
         if dirty_count > cols * rows / 2 {
+            _instr_path = "viewport_buffer";
             // Many dirty tiles (e.g. panning): paint into viewport-sized buffer
             // once, then copy tile-sized chunks. Avoids redundant tree walks and
             // re-rasterization of primitives across tiles.
             viewport_buffer.fill(background_color);
+            _instr_paint_t0 = crate::emInstr::wall_us();
             {
                 let mut painter = emPainter::new(viewport_buffer);
                 view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
             }
+            _instr_paint_t1 = crate::emInstr::wall_us();
             for row in 0..rows {
                 for col in 0..cols {
                     let tile = tile_cache.get_or_create(col, row);
@@ -660,6 +668,8 @@ impl emWindow {
                 }
             }
         } else if render_pool.GetThreadCount() > 1 && dirty_count > 1 {
+            _instr_path = "parallel";
+            _instr_paint_t0 = crate::emInstr::wall_us();
             // Multi-threaded rendering via display list.
             // Phase 1: Record all draw operations single-threaded.
             Self::render_parallel_inner(
@@ -675,7 +685,10 @@ impl emWindow {
                 tile_size,
                 background_color,
             );
+            _instr_paint_t1 = crate::emInstr::wall_us();
         } else {
+            _instr_path = "per_tile";
+            _instr_paint_t0 = crate::emInstr::wall_us();
             // Few dirty tiles, single-threaded: paint per-tile.
             for row in 0..rows {
                 for col in 0..cols {
@@ -694,6 +707,7 @@ impl emWindow {
                     }
                 }
             }
+            _instr_paint_t1 = crate::emInstr::wall_us();
         }
 
         tile_cache.advance_frame();
@@ -716,13 +730,18 @@ impl emWindow {
         use std::fmt::Write as _;
         let _ = writeln!(
             _instr_buf,
-            "RENDER|enter_us={}|paint_done_us={}|present_done_us={}|paint_dur_us={}|present_dur_us={}|dirty_tiles={}",
+            "RENDER|enter_us={}|paint_done_us={}|present_done_us={}|paint_dur_us={}|present_dur_us={}|dirty_tiles={}|total_tiles={}|path={}|dirty_detect_us={}|tree_paint_us={}|upload_blit_us={}",
             _instr_t0,
             _instr_t_paint,
             _instr_t_present,
             _instr_t_paint - _instr_t0,
             _instr_t_present - _instr_t_paint,
-            dirty_count
+            dirty_count,
+            cols * rows,
+            _instr_path,
+            _instr_dirty_done - _instr_t0,
+            _instr_paint_t1 - _instr_paint_t0,
+            _instr_t_paint - _instr_paint_t1,
         );
         crate::emInstr::write_line(&_instr_buf);
     }

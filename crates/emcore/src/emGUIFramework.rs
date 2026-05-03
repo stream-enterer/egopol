@@ -1482,7 +1482,18 @@ impl ApplicationHandler<CtrlMsg> for App {
             // when the blink timer fires.
             let active_id = win.view().GetActivePanel();
             if let Some(active_id) = active_id {
+                let _instr_inv_t0 = crate::emInstr::wall_us();
                 win.view_mut().InvalidatePainting(&mut sc, &tree, active_id);
+                let _instr_inv_t1 = crate::emInstr::wall_us();
+                let mut _instr_buf = String::with_capacity(96);
+                use std::fmt::Write as _;
+                let _ = writeln!(
+                    _instr_buf,
+                    "INVAL|site=active_panel|active_id={:?}|dur_us={}",
+                    active_id,
+                    _instr_inv_t1 - _instr_inv_t0
+                );
+                crate::emInstr::write_line(&_instr_buf);
             }
 
             // Phase 3.5.A Task 7: put the tree back on the window.
