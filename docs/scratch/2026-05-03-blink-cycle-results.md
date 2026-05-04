@@ -113,3 +113,5 @@ Saved at `/tmp/blink-cycle-report.txt`. Excerpt of relevant tail:
 ```
 
 Note: B2's path-trace verdict (`O1`) targeted `PanelId(71v1)` (the production TextField under control-panel area) per the legacy heuristic. B2.1's revised picker chose `PanelId(497v1)` (the test-panel TextField the user actually clicked into, in the test cosmos area). Both targets receive zero HANDLER_ENTRY in the active window, so the OA1 verdict is robust regardless of target-picker choice.
+
+**Next phase dispatched:** Task 22 — B2.2 re-brainstorm. Per spec Phase 0 outcome dispatch, the OA1 bin (handler not invoked despite NOTICE_FC_DECODE present) is out of B2.1's ≤30 LOC fix budget; the candidate space for B2.2 is the gap between `behavior_type` lookup and `behavior.notice()` invocation in `emView.rs:4204-4245`. Tasks 13-21 are skipped (no Phase 1 fix lands in B2.1).
